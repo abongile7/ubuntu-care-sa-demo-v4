@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(
   _request: Request,
-  context: { params: Promise<{ patientId: string }> | { patientId: string } }
+  context: { params: Promise<Promise<{ patientId: string }> | { patientId: string }> }
 ) {
   try {
     const session = await requireAuthSession();
