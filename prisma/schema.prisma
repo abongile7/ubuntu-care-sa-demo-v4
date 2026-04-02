@@ -1,0 +1,351 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  patient
+  doctor
+  nurse
+  admin
+}
+
+enum Channel {
+  Admissions
+  Radiology
+  Ward
+  Theatre
+  Billing
+  Casualty
+  Laboratory
+  Transfers
+}
+
+model User {
+  id           String          @id @default(cuid())
+  name         String
+  email        String          @unique
+  passwordHash String
+  role         Role
+  unit         String
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  sessions     Session[]
+  patient      PatientProfile?
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+}
+
+model PatientProfile {
+  id                            String                     @id @default(cuid())
+  userId                        String                     @unique
+  facilityFileNumber            String
+  fullName                      String
+  saId                          String
+  passportNumber                String
+  citizenship                   String
+  dateOfBirth                   DateTime
+  gender                        String
+  phone                         String
+  email                         String
+  language                      String
+  preferredContactMethod        String
+  province                      String
+  city                          String
+  address                       String
+  postalCode                    String
+  maritalStatus                 String
+  occupation                    String
+  employer                      String
+  employerPhone                 String
+  religion                      String
+  homeClinic                    String
+  arrivalMode                   String
+  arrivalReason                 String
+  broughtBy                     String
+  referralSource                String
+  referringDoctor               String
+  transferredFrom               String
+  transferReason                String
+  medicalAidScheme              String
+  medicalAidPlan                String
+  medicalAidNumber              String
+  membershipTier                String
+  principalMemberName           String
+  principalMemberNumber         String
+  relationshipToPrincipalMember String
+  nextOfKin                     String
+  nextOfKinRelation             String
+  nextOfKinPhone                String
+  guardianName                  String
+  guardianPhone                 String
+  bloodType                     String
+  allergies                     String
+  currentMedication             String
+  chronicConditions             String
+  disabilitySupport             String
+  pregnancyStatus               String
+  visitPathway                  String
+  triagePriority                String
+  ward                          String
+  bedNumber                     String
+  interpreterRequired           Boolean                    @default(false)
+  popiaConsent                  Boolean                    @default(false)
+  consentTreatment              Boolean                    @default(false)
+  consentDataSharing            Boolean                    @default(false)
+  consentBilling                Boolean                    @default(false)
+  createdAt                     DateTime                   @default(now())
+  updatedAt                     DateTime                   @updatedAt
+  user                          User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appointments                  Appointment[]
+  scans                         ScanRecord[]
+  vitalRecords                  VitalRecord[]
+  medicationOrders              MedicationOrder[]
+  labResults                    LabResult[]
+  theatreCases                  TheatreCase[]
+  transferRecords               TransferRecord[]
+  documents                     DocumentRecord[]
+  emailLogs                     EmailLog[]
+  arrivals                      ArrivalRecord[]
+  medicationAdministrations     MedicationAdministration[]
+
+  @@index([facilityFileNumber])
+}
+
+model Appointment {
+  id            String         @id @default(cuid())
+  reference     String         @unique
+  patientId     String
+  department    String
+  clinician     String
+  scheduledAt   DateTime
+  type          String
+  status        String
+  location      String
+  notes         String
+  createdByRole Role
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  patient       PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+}
+
+model ScanRecord {
+  id             String         @id @default(cuid())
+  reference      String         @unique
+  patientId      String
+  title          String
+  modality       String
+  takenAt        DateTime
+  department     String
+  uploadedBy     String
+  uploadedByRole Role
+  notes          String
+  previewData    String
+  createdAt      DateTime       @default(now())
+  patient        PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+}
+
+model MessageRecord {
+  id         String   @id @default(cuid())
+  reference  String   @unique
+  channel    Channel
+  authorName String
+  authorRole Role
+  body       String
+  createdAt  DateTime @default(now())
+}
+
+model ShiftTask {
+  id         String   @id @default(cuid())
+  reference  String   @unique
+  title      String
+  owner      String
+  department String
+  priority   String
+  status     String
+  eta        String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model VitalRecord {
+  id              String         @id @default(cuid())
+  reference       String         @unique
+  patientId       String
+  recordedBy      String
+  recordedByRole  Role
+  recordedAt      DateTime
+  systolic        Int
+  diastolic       Int
+  pulse           Int
+  temperature     Float
+  respiratoryRate Int
+  spo2            Int
+  glucose         String
+  painScore       Int
+  notes           String
+  patient         PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, recordedAt])
+}
+
+model MedicationOrder {
+  id             String                     @id @default(cuid())
+  reference      String                     @unique
+  patientId      String
+  prescribedBy   String
+  prescribedByRole Role
+  prescribedAt   DateTime                   @default(now())
+  drugName       String
+  dose           String
+  route          String
+  frequency      String
+  indication     String
+  startDate      DateTime
+  endDate        DateTime?
+  status         String
+  patient        PatientProfile             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  administrations MedicationAdministration[]
+
+  @@index([patientId])
+}
+
+model MedicationAdministration {
+  id             String           @id @default(cuid())
+  reference      String           @unique
+  orderId        String
+  patientId      String
+  administeredBy String
+  administeredByRole Role
+  administeredAt DateTime         @default(now())
+  status         String
+  notes          String
+  order          MedicationOrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  patient        PatientProfile   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([patientId])
+}
+
+model LabResult {
+  id             String         @id @default(cuid())
+  reference      String         @unique
+  patientId      String
+  provider       String
+  testName       String
+  specimen       String
+  collectedAt    DateTime
+  reportedAt     DateTime
+  resultSummary  String
+  abnormalFlag   String
+  fileUrl        String
+  uploadedBy     String
+  uploadedByRole Role
+  patient        PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, reportedAt])
+}
+
+model TheatreCase {
+  id             String         @id @default(cuid())
+  reference      String         @unique
+  patientId      String
+  procedureName  String
+  specialty      String
+  surgeon        String
+  anaesthetist   String
+  theatreRoom    String
+  scheduledAt    DateTime
+  urgency        String
+  status         String
+  notes          String
+  patient        PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, scheduledAt])
+}
+
+model TransferRecord {
+  id                  String         @id @default(cuid())
+  reference           String         @unique
+  patientId           String
+  type                String
+  sourceFacility      String
+  destinationFacility String
+  transportMode       String
+  escortType          String
+  reason              String
+  requestedBy         String
+  status              String
+  eta                 String
+  createdAt           DateTime       @default(now())
+  patient             PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+}
+
+model DocumentRecord {
+  id          String         @id @default(cuid())
+  reference   String         @unique
+  patientId   String
+  category    String
+  title       String
+  body        String
+  authorName  String
+  authorRole  Role
+  createdAt   DateTime       @default(now())
+  patient     PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+}
+
+model EmailLog {
+  id          String         @id @default(cuid())
+  reference   String         @unique
+  patientId   String
+  recipient   String
+  subject     String
+  category    String
+  sentBy      String
+  status      String
+  createdAt   DateTime       @default(now())
+  patient     PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+}
+
+model ArrivalRecord {
+  id            String         @id @default(cuid())
+  reference     String         @unique
+  patientId     String
+  patientName   String
+  arrivalMode   String
+  source        String
+  triageColor   String
+  casualtyArea  String
+  handoverNotes String
+  broughtInAt   DateTime
+  status        String
+  createdBy     String
+  createdAt     DateTime       @default(now())
+  patient       PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, broughtInAt])
+}
