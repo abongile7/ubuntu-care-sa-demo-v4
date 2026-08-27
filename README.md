@@ -43,3 +43,7 @@ Open `http://localhost:3000`.
 
 - Email sending is simulated and stored in the in-app email queue unless real SMTP credentials are added later.
 - Demo portraits use remote stock headshots and should be replaced with approved staff images before real deployment.
+
+## Legacy static CareFlow demo
+
+The cleaned single-file CareFlow prototype is preserved in [`careflow-static-demo/`](careflow-static-demo/). It can be opened directly or served independently for lightweight workflow demonstrations.
