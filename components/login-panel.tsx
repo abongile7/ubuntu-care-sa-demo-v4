@@ -52,6 +52,13 @@ const quickLogins = [
     password: "Demo123!",
     accent: "doctor",
     detail: "Consented claim packets and simulated review"
+  },
+  {
+    label: "Referring practice",
+    email: "referring@ubuntucare.demo",
+    password: "Demo123!",
+    accent: "doctor",
+    detail: "Consented requests for previous records and secure document upload"
   }
 ];
 

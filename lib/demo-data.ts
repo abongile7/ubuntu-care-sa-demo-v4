@@ -156,7 +156,8 @@ export const roleLabelMap: Record<Role, string> = {
   admin: "Admin",
   paramedic: "Ambulance crew",
   billing: "Hospital billing",
-  insurer: "Medical aid"
+  insurer: "Medical aid",
+  referring_doctor: "Referring practice"
 };
 
 export const staffDirectory = [

@@ -14,7 +14,11 @@
     "db:setup": "node scripts/prepare-sqlite.mjs && prisma db push && tsx prisma/seed.ts",
     "postinstall": "prisma generate",
     "test": "node --import tsx --test --test-concurrency=1 tests/*.test.ts",
-    "typecheck": "next typegen && tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit",
+    "reminders:run": "tsx scripts/reminder-worker.ts --once",
+    "reminders:worker": "tsx scripts/reminder-worker.ts --watch",
+    "demo:setup": "node scripts/demo-setup.mjs",
+    "demo:start": "node scripts/demo-start.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.0.0",

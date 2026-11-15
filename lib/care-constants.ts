@@ -29,7 +29,8 @@ export const roleLabels: Record<Role, string> = {
   admin: "Admissions",
   paramedic: "Ambulance crew",
   billing: "Hospital billing",
-  insurer: "Medical aid"
+  insurer: "Medical aid",
+  referring_doctor: "Referring practice"
 };
 export function readable(value: string) {
   return value.toLowerCase().replaceAll("_", " ");
