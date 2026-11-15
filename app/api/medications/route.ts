@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { medicationRoutes } from "@/lib/demo-data";
 
 export async function POST(request: Request) {
   try {
@@ -13,19 +14,37 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: false, message: "Only doctors can prescribe medication." }, { status: 403 });
       }
 
+      const patientId = typeof body.patientId === "string" ? body.patientId.trim() : "";
+      const drugName = typeof body.drugName === "string" ? body.drugName.trim() : "";
+      const dose = typeof body.dose === "string" ? body.dose.trim() : "";
+      const frequency = typeof body.frequency === "string" ? body.frequency.trim() : "";
+      const route = String(body.route ?? "Oral");
+      const startDate = new Date(String(body.startDate ?? new Date().toISOString().slice(0, 10)));
+      const endDate = body.endDate ? new Date(String(body.endDate)) : null;
+
+      if (!patientId || !drugName || !dose || !frequency) {
+        return NextResponse.json({ ok: false, message: "Patient, medication, dose, and frequency are required." }, { status: 400 });
+      }
+      if (!medicationRoutes.some((item) => item === route) || Number.isNaN(startDate.getTime()) || (endDate && (Number.isNaN(endDate.getTime()) || endDate < startDate))) {
+        return NextResponse.json({ ok: false, message: "Choose a valid medication route and date range." }, { status: 400 });
+      }
+      if (!(await prisma.patientProfile.findUnique({ where: { id: patientId } }))) {
+        return NextResponse.json({ ok: false, message: "Patient record not found." }, { status: 404 });
+      }
+
       await prisma.medicationOrder.create({
         data: {
           reference: `MED-${Date.now()}`,
-          patientId: String(body.patientId ?? ""),
+          patientId,
           prescribedBy: session.user.name,
           prescribedByRole: session.user.role,
-          drugName: String(body.drugName ?? ""),
-          dose: String(body.dose ?? ""),
-          route: String(body.route ?? "Oral"),
-          frequency: String(body.frequency ?? ""),
+          drugName,
+          dose,
+          route,
+          frequency,
           indication: String(body.indication ?? ""),
-          startDate: new Date(String(body.startDate ?? new Date().toISOString().slice(0, 10))),
-          endDate: body.endDate ? new Date(String(body.endDate)) : null,
+          startDate,
+          endDate,
           status: "Active"
         }
       });
@@ -38,11 +57,25 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: false, message: "Only clinical staff can chart administration." }, { status: 403 });
       }
 
-      const orderId = String(body.orderId ?? "");
+      const patientId = typeof body.patientId === "string" ? body.patientId.trim() : "";
+      const orderId = typeof body.orderId === "string" ? body.orderId.trim() : "";
+      const status = String(body.status ?? "Given");
+      if (!patientId || !orderId) {
+        return NextResponse.json({ ok: false, message: "Patient and medication order are required." }, { status: 400 });
+      }
+      if (!["Given", "Withheld", "Missed"].includes(status)) {
+        return NextResponse.json({ ok: false, message: "Choose a valid administration status." }, { status: 400 });
+      }
       const order = await prisma.medicationOrder.findUnique({ where: { id: orderId } });
 
       if (!order) {
         return NextResponse.json({ ok: false, message: "Medication order not found." }, { status: 404 });
+      }
+      if (order.patientId !== patientId) {
+        return NextResponse.json({ ok: false, message: "Medication order does not belong to the selected patient." }, { status: 400 });
+      }
+      if (order.status !== "Active") {
+        return NextResponse.json({ ok: false, message: "Only active medication orders can be administered." }, { status: 409 });
       }
 
       await prisma.medicationAdministration.create({
@@ -52,7 +85,7 @@ export async function POST(request: Request) {
           patientId: order.patientId,
           administeredBy: session.user.name,
           administeredByRole: session.user.role,
-          status: String(body.status ?? "Given"),
+          status,
           notes: String(body.notes ?? "")
         }
       });

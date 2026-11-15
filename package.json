@@ -9,12 +9,14 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:setup": "prisma db push && tsx prisma/seed.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test": "node --import tsx --test --test-concurrency=1 tests/*.test.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@prisma/client": "^6.0.0",
     "bcryptjs": "^3.0.3",
-    "next": "15.5.14",
+    "next": "15.5.29",
     "pdf-lib": "^1.17.1",
     "react": "19.0.0",
     "react-dom": "19.0.0"

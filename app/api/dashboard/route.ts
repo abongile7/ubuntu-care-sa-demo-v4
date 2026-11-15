@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAuthSession } from "@/lib/auth";
 import { hospitalMeta, staffDirectory } from "@/lib/demo-data";
 import { prisma } from "@/lib/prisma";
+import { patientAccessWhere } from "@/lib/patient-access";
 import {
   serializeAppointment,
   serializeArrival,
@@ -64,20 +65,16 @@ export async function GET(request: Request) {
     const session = await requireAuthSession();
     const url = new URL(request.url);
     const requestedPatientId = url.searchParams.get("patientId");
+    const isPatient = session.user.role === "patient";
 
-    const cases =
-      session.user.role === "patient"
-        ? await prisma.patientProfile.findMany({
-            where: { userId: session.user.id },
-            orderBy: { updatedAt: "desc" }
-          })
-        : await prisma.patientProfile.findMany({
-            orderBy: { updatedAt: "desc" }
-          });
+    const cases = await prisma.patientProfile.findMany({
+      where: patientAccessWhere(session.user),
+      orderBy: { updatedAt: "desc" }
+    });
 
     const activePatient =
-      session.user.role === "patient"
-        ? cases[0]
+      isPatient
+        ? requestedPatientId ? cases.find((item) => item.id === requestedPatientId) : cases[0]
         : cases.find((item) => item.id === requestedPatientId) ?? cases[0];
 
     if (!activePatient) {
@@ -110,10 +107,10 @@ export async function GET(request: Request) {
         where: { patientId: activePatient.id },
         orderBy: { takenAt: "desc" }
       }),
-      prisma.messageRecord.findMany({
+      isPatient ? Promise.resolve([]) : prisma.messageRecord.findMany({
         orderBy: { createdAt: "desc" }
       }),
-      prisma.shiftTask.findMany({
+      isPatient ? Promise.resolve([]) : prisma.shiftTask.findMany({
         orderBy: { createdAt: "desc" }
       }),
       prisma.vitalRecord.findMany({
@@ -149,6 +146,7 @@ export async function GET(request: Request) {
         orderBy: { createdAt: "desc" }
       }),
       prisma.arrivalRecord.findMany({
+        where: isPatient ? { patientId: activePatient.id } : undefined,
         orderBy: { broughtInAt: "desc" }
       })
     ]);
@@ -183,8 +181,8 @@ export async function GET(request: Request) {
       activeTasks: tasks.filter((item) => item.status !== "Done").length,
       transfersToday: arrivals.filter((item) => item.arrivalMode.toLowerCase().includes("transfer")).length,
       ambulanceArrivals: arrivals.filter((item) => item.arrivalMode === "Ambulance").length,
-      theatreCasesToday: await prisma.theatreCase.count(),
-      pendingEmails: await prisma.emailLog.count({
+      theatreCasesToday: isPatient ? theatreCases.length : await prisma.theatreCase.count(),
+      pendingEmails: isPatient ? emails.filter((item) => ["Queued", "Draft"].includes(item.status)).length : await prisma.emailLog.count({
         where: { status: { in: ["Queued", "Draft"] } }
       })
     };
@@ -237,7 +235,7 @@ export async function GET(request: Request) {
           : "No appointment booked"
       },
       facilityMetrics
-    });
+    }, { headers: { "Cache-Control": "private, no-store", Vary: "Cookie" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load dashboard.";
     const status = message === "UNAUTHENTICATED" ? 401 : 500;

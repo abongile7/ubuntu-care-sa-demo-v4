@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAuthSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { patientAccessWhere } from "@/lib/patient-access";
 
 function toDateTimeValue(value: string) {
   if (!value) return null;
@@ -31,8 +32,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const patient = await prisma.patientProfile.findUnique({
-      where: { id: patientId }
+    const patient = await prisma.patientProfile.findFirst({
+      where: patientAccessWhere(session.user, patientId)
     });
 
     if (!patient) {

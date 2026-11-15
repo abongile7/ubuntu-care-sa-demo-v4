@@ -93,6 +93,7 @@ export function LoginPanel() {
           Each seeded role opens a visibly different workspace with its own colour accents, actions, and hospital
           priorities. Use the quick cards below during the presentation for instant switching.
         </p>
+        <p>Demo only. Use fictional patient information; these shared accounts are for presentations.</p>
 
         <div className="quick-login-grid">
           {quickLogins.map((item) => (

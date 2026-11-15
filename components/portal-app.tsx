@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Role } from "@prisma/client";
 import {
@@ -447,6 +447,11 @@ export function PortalApp({ initialSession }: { initialSession: SessionUser }) {
   const [session, setSession] = useState<SessionUser>(initialSession);
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const dashboardRequestId = useRef(0);
+  const selectedPatientId = useRef("");
+  const patientSelectionVersion = useRef(0);
+  const mutationPending = useRef(false);
   const [notice, setNotice] = useState<Notice | null>(initialNotice);
   const [activePatientId, setActivePatientId] = useState("");
   const [profileDraft, setProfileDraft] = useState<PatientShape | null>(null);
@@ -554,7 +559,6 @@ export function PortalApp({ initialSession }: { initialSession: SessionUser }) {
   });
 
   const [arrivalDraft, setArrivalDraft] = useState({
-    patientName: "",
     arrivalMode: "Walk-in",
     source: "Self referral",
     triageColor: "Green",
@@ -563,15 +567,121 @@ export function PortalApp({ initialSession }: { initialSession: SessionUser }) {
     status: "Awaiting review"
   });
 
+  function resetPatientDrafts() {
+    setAppointmentDraft({
+      department: "General Medicine",
+      clinician: "TBD",
+      scheduledAt: "",
+      type: "General consultation",
+      location: "UbuntuCare Main Campus",
+      notes: ""
+    });
+    setScanDraft({
+      title: "",
+      modality: "MRI",
+      department: "Radiology",
+      notes: "",
+      previewData: ""
+    });
+    setVitalDraft({
+      systolic: "120",
+      diastolic: "80",
+      pulse: "72",
+      temperature: "36.6",
+      respiratoryRate: "18",
+      spo2: "98",
+      glucose: "5.6 mmol/L",
+      painScore: "0",
+      notes: ""
+    });
+    setMedicationDraft({
+      drugName: "",
+      dose: "",
+      route: "Oral",
+      frequency: "",
+      indication: "",
+      startDate: new Date().toISOString().slice(0, 10),
+      endDate: ""
+    });
+    setMedAdminDraft({
+      orderId: "",
+      status: "Given",
+      notes: ""
+    });
+    setLabDraft({
+      provider: "Ampath",
+      testName: "",
+      specimen: "Blood",
+      collectedAt: new Date().toISOString().slice(0, 16),
+      reportedAt: new Date().toISOString().slice(0, 16),
+      abnormalFlag: "Normal",
+      resultSummary: "",
+      fileUrl: ""
+    });
+    setTheatreDraft({
+      procedureName: "",
+      specialty: "",
+      surgeon: session.name,
+      anaesthetist: "",
+      theatreRoom: "Theatre 1",
+      scheduledAt: new Date().toISOString().slice(0, 16),
+      urgency: "Elective",
+      notes: ""
+    });
+    setTransferDraft({
+      type: "Inter-hospital transfer",
+      sourceFacility: "UbuntuCare Private Hospital",
+      destinationFacility: "",
+      transportMode: "Ambulance",
+      escortType: "",
+      reason: "",
+      eta: ""
+    });
+    setDocumentDraft({
+      category: "Sick note",
+      title: "",
+      body: ""
+    });
+    setEmailDraft({
+      recipient: "",
+      subject: "",
+      category: "Document"
+    });
+    setArrivalDraft({
+      arrivalMode: "Walk-in",
+      source: "Self referral",
+      triageColor: "Green",
+      casualtyArea: "Casualty triage",
+      handoverNotes: "",
+      status: "Awaiting review"
+    });
+  }
+
+  function switchPatient(patientId: string) {
+    if (mutationPending.current || patientId === selectedPatientId.current) return;
+    selectedPatientId.current = patientId;
+    patientSelectionVersion.current += 1;
+    dashboardRequestId.current += 1;
+    setLoading(true);
+    setNotice(null);
+    resetPatientDrafts();
+    setActivePatientId(patientId);
+  }
+
   useEffect(() => {
     void loadDashboard(activePatientId);
+    return () => {
+      dashboardRequestId.current += 1;
+    };
   }, [activePatientId]);
 
   async function loadDashboard(patientId?: string) {
+    const requestId = ++dashboardRequestId.current;
     setLoading(true);
     try {
       const response = await fetch(`/api/dashboard${patientId ? `?patientId=${patientId}` : ""}`);
       const payload = (await response.json()) as DashboardPayload;
+      if (requestId !== dashboardRequestId.current) return false;
 
       if (!response.ok || !payload.ok) {
         throw new Error("Unable to load portal data.");
@@ -580,30 +690,41 @@ export function PortalApp({ initialSession }: { initialSession: SessionUser }) {
       setSession(payload.session);
       setDashboard(payload);
       setProfileDraft(payload.activePatient);
-      if (!activePatientId || session.role === "patient") {
+      if (!patientId || session.role === "patient") {
+        selectedPatientId.current = payload.activePatient.id;
         setActivePatientId(payload.activePatient.id);
       }
+      return true;
     } catch (error) {
+      if (requestId !== dashboardRequestId.current) return false;
       setNotice({
         type: "error",
         text: error instanceof Error ? error.message : "Unable to load portal data."
       });
+      return false;
     } finally {
-      setLoading(false);
+      if (requestId === dashboardRequestId.current) setLoading(false);
     }
   }
 
   async function withRefresh(work: () => Promise<void>, successText: string) {
+    if (loading || mutationPending.current || !dashboard || selectedPatientId.current !== dashboard.activePatient.id) return;
+    mutationPending.current = true;
+    setSaving(true);
     setNotice(null);
     try {
       await work();
-      await loadDashboard(activePatientId);
-      setNotice({ type: "success", text: successText });
+      if (await loadDashboard(dashboard.activePatient.id)) {
+        setNotice({ type: "success", text: successText });
+      }
     } catch (error) {
       setNotice({
         type: "error",
         text: error instanceof Error ? error.message : "Action failed."
       });
+    } finally {
+      mutationPending.current = false;
+      setSaving(false);
     }
   }
 
@@ -617,7 +738,7 @@ export function PortalApp({ initialSession }: { initialSession: SessionUser }) {
   const latestScan = dashboard?.scans[0];
   const latestLab = dashboard?.labs[0];
   const latestDocument = dashboard?.documents[0];
-  const medicationOptions = dashboard?.medications ?? [];
+  const medicationOptions = dashboard?.medications.filter((item) => item.status === "Active") ?? [];
   const activeAdministrations = dashboard?.administrations ?? [];
 
   function updateProfileField(field: keyof PatientShape, value: string | boolean) {
@@ -768,13 +889,14 @@ export function PortalApp({ initialSession }: { initialSession: SessionUser }) {
   }
 
   async function administerMedication() {
-    if (!medAdminDraft.orderId) return;
+    if (!dashboard || !medAdminDraft.orderId) return;
 
     await withRefresh(
       async () => {
         await postJson("/api/medications", {
           action: "administer",
-          ...medAdminDraft
+          ...medAdminDraft,
+          patientId: dashboard.activePatient.id
         });
         setMedAdminDraft({
           orderId: "",
@@ -911,7 +1033,6 @@ export function PortalApp({ initialSession }: { initialSession: SessionUser }) {
       async () => {
         await postJson("/api/arrivals", { patientId: dashboard?.activePatient.id, ...arrivalDraft });
         setArrivalDraft({
-          patientName: "",
           arrivalMode: "Walk-in",
           source: "Self referral",
           triageColor: "Green",
@@ -927,8 +1048,10 @@ export function PortalApp({ initialSession }: { initialSession: SessionUser }) {
   async function onImageSelected(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
+    const selectionVersion = patientSelectionVersion.current;
     const reader = new FileReader();
     reader.onload = () => {
+      if (selectionVersion !== patientSelectionVersion.current) return;
       setScanDraft((current) => ({
         ...current,
         previewData: String(reader.result ?? "")
@@ -965,6 +1088,7 @@ export function PortalApp({ initialSession }: { initialSession: SessionUser }) {
               ? "Follow your admission, upcoming appointments, medicines, scans, documents, and care updates."
               : "Run clinical, ward, admissions, casualty, transfer, and document workflows from one screen."}
           </p>
+          <p><strong>Fictional-data demo · Do not enter real patient information.</strong></p>
         </div>
 
         <div className="portal-header-actions">
@@ -1011,7 +1135,7 @@ export function PortalApp({ initialSession }: { initialSession: SessionUser }) {
           {session.role !== "patient" ? (
             <label>
               Switch patient case
-              <select value={activePatientId} onChange={(event) => setActivePatientId(event.target.value)}>
+              <select value={activePatientId} disabled={saving} onChange={(event) => switchPatient(event.target.value)}>
                 {dashboard.cases.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.fullName} · {item.ward} · {item.triagePriority}
@@ -1061,7 +1185,14 @@ export function PortalApp({ initialSession }: { initialSession: SessionUser }) {
         </SectionCard>
       </section>
 
-      <section className="portal-grid portal-main-grid">
+      {loading ? <p role="status">Loading selected patient…</p> : null}
+      <fieldset
+        className="portal-grid portal-main-grid"
+        disabled={loading || saving || activePatientId !== dashboard.activePatient.id}
+        aria-label="Patient workspace actions"
+        aria-busy={loading || saving}
+        style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}
+      >
         {session.role === "patient" ? (
           <>
             <SectionCard title="My admission and contact details" kicker="Paperless profile" action={<button className="button button-primary" type="button" onClick={saveProfile}>Save</button>}>
@@ -1234,6 +1365,9 @@ export function PortalApp({ initialSession }: { initialSession: SessionUser }) {
 
                 <div>
                   <h4>Case updates</h4>
+                  {!staffFilteredMessages.length ? (
+                    <EmptyState title="No patient updates yet" text="Your appointments, results, and documents are available in your care journey above." />
+                  ) : null}
                   <div className="list-stack">
                     {staffFilteredMessages.slice(0, 6).map((message) => (
                       <article key={message.id} className="line-card">
@@ -1828,7 +1962,7 @@ export function PortalApp({ initialSession }: { initialSession: SessionUser }) {
                   <div className="form-grid form-grid-2">
                     <label>
                       Patient name
-                      <input value={arrivalDraft.patientName} onChange={(event) => setArrivalDraft({ ...arrivalDraft, patientName: event.target.value })} />
+                      <input value={`${currentPatient.fullName} · ${currentPatient.facilityFileNumber}`} readOnly />
                     </label>
                     <label>
                       Arrival mode
@@ -2113,7 +2247,7 @@ export function PortalApp({ initialSession }: { initialSession: SessionUser }) {
             </SectionCard>
           </>
         ) : null}
-      </section>
+      </fieldset>
     </div>
   );
 }

@@ -11,17 +11,22 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const patientId = String(body.patientId ?? "");
+    const patientId = typeof body.patientId === "string" ? body.patientId.trim() : "";
 
-    const patient = patientId
-      ? await prisma.patientProfile.findUnique({ where: { id: patientId } })
-      : null;
+    if (!patientId) {
+      return NextResponse.json({ ok: false, message: "Patient is required." }, { status: 400 });
+    }
+
+    const patient = await prisma.patientProfile.findUnique({ where: { id: patientId } });
+    if (!patient) {
+      return NextResponse.json({ ok: false, message: "Patient record not found." }, { status: 404 });
+    }
 
     await prisma.arrivalRecord.create({
       data: {
         reference: `ARR-${Date.now()}`,
         patientId,
-        patientName: String(body.patientName ?? patient?.fullName ?? ""),
+        patientName: patient.fullName,
         arrivalMode: String(body.arrivalMode ?? "Walk-in"),
         source: String(body.source ?? "Self referral"),
         triageColor: String(body.triageColor ?? "Green"),

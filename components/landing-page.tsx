@@ -79,11 +79,11 @@ export function LandingPage() {
         <section className="hero-section">
           <div className="shell hero-grid">
             <div className="hero-copy">
-              <span className="eyebrow-pill">Broad hospital operations demo · South Africa-ready</span>
+              <span className="eyebrow-pill">Fictional-data prototype · South Africa</span>
               <h1>From casualty to ward, theatre, transport, radiology, labs, and admin — all in one app.</h1>
               <p className="lead">
-                UbuntuCare now demos a broader paperless hospital platform with real-seeming role separation,
-                mobile-friendly screens, and South African admission and transfer workflows.
+                Explore patient, doctor, nurse, and admin workflows using fictional records.
+                This prototype is for demonstrations and must not be used for real patient care or information.
               </p>
 
               <div className="hero-actions">

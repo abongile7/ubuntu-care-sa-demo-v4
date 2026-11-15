@@ -1,7 +1,22 @@
 import { NextResponse } from "next/server";
 import { requireAuthSession } from "@/lib/auth";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { serializePatient } from "@/lib/serializers";
+
+// Self-reported details can be updated by the patient. File identifiers,
+// verified blood type, referral details, triage, and bed allocation belong to staff.
+const patientEditableFields = new Set([
+  "fullName", "saId", "passportNumber", "citizenship", "dateOfBirth", "gender",
+  "phone", "email", "language", "preferredContactMethod", "province", "city",
+  "address", "postalCode", "maritalStatus", "occupation", "employer", "employerPhone",
+  "religion", "homeClinic", "arrivalReason", "medicalAidScheme", "medicalAidPlan",
+  "medicalAidNumber", "membershipTier", "principalMemberName", "principalMemberNumber",
+  "relationshipToPrincipalMember", "nextOfKin", "nextOfKinRelation", "nextOfKinPhone",
+  "guardianName", "guardianPhone", "allergies", "currentMedication", "chronicConditions",
+  "disabilitySupport", "pregnancyStatus", "interpreterRequired", "popiaConsent",
+  "consentTreatment", "consentDataSharing", "consentBilling"
+]);
 
 function boolValue(value: unknown, fallback: boolean) {
   if (typeof value === "boolean") return value;
@@ -37,9 +52,7 @@ export async function PUT(request: Request) {
       );
     }
 
-    const updated = await prisma.patientProfile.update({
-      where: { id: patient.id },
-      data: {
+    const data: Prisma.PatientProfileUpdateInput = {
         facilityFileNumber: String(body.facilityFileNumber ?? patient.facilityFileNumber),
         fullName: String(body.fullName ?? patient.fullName),
         saId: String(body.saId ?? patient.saId),
@@ -97,7 +110,17 @@ export async function PUT(request: Request) {
         consentTreatment: boolValue(body.consentTreatment, patient.consentTreatment),
         consentDataSharing: boolValue(body.consentDataSharing, patient.consentDataSharing),
         consentBilling: boolValue(body.consentBilling, patient.consentBilling)
-      }
+    };
+
+    // The UI submits the full profile. Ignore protected fields for patients
+    // instead of rejecting otherwise valid contact-detail saves.
+    const permittedData = session.user.role === "patient"
+      ? Object.fromEntries(Object.entries(data).filter(([field]) => patientEditableFields.has(field)))
+      : data;
+
+    const updated = await prisma.patientProfile.update({
+      where: { id: patient.id },
+      data: permittedData
     });
 
     return NextResponse.json({ ok: true, patient: serializePatient(updated) });
