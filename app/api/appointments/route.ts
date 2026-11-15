@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { requireAuthSession } from "@/lib/auth";
+import { requireLegacySession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { patientAccessWhere } from "@/lib/patient-access";
 
 function toDateTimeValue(value: string) {
   if (!value) return null;
@@ -11,7 +12,7 @@ function toDateTimeValue(value: string) {
 
 export async function POST(request: Request) {
   try {
-    const session = await requireAuthSession();
+    const session = await requireLegacySession();
 
     if (session.user.role !== "patient" && session.user.role !== "admin") {
       return NextResponse.json(
@@ -31,8 +32,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const patient = await prisma.patientProfile.findUnique({
-      where: { id: patientId }
+    const patient = await prisma.patientProfile.findFirst({
+      where: patientAccessWhere(session.user, patientId)
     });
 
     if (!patient) {
@@ -60,10 +61,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to create appointment.";
-    const status = message === "UNAUTHENTICATED" ? 401 : 500;
+    const status = message === "UNAUTHENTICATED" ? 401 : message === "FORBIDDEN" ? 403 : 500;
 
     return NextResponse.json(
-      { ok: false, message: status === 401 ? "Sign in to continue." : message },
+      { ok: false, message: status === 401 ? "Sign in to continue." : status === 403 ? "This role cannot access the detailed hospital workspace." : message },
       { status }
     );
   }
@@ -71,7 +72,7 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const session = await requireAuthSession();
+    const session = await requireLegacySession();
 
     if (session.user.role === "patient") {
       return NextResponse.json(
@@ -101,10 +102,10 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to update appointment.";
-    const status = message === "UNAUTHENTICATED" ? 401 : 500;
+    const status = message === "UNAUTHENTICATED" ? 401 : message === "FORBIDDEN" ? 403 : 500;
 
     return NextResponse.json(
-      { ok: false, message: status === 401 ? "Sign in to continue." : message },
+      { ok: false, message: status === 401 ? "Sign in to continue." : status === 403 ? "This role cannot access the detailed hospital workspace." : message },
       { status }
     );
   }

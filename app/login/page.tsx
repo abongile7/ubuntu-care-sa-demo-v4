@@ -7,7 +7,7 @@ export default async function LoginPage() {
   const session = await getAuthSession();
 
   if (session) {
-    redirect("/portal");
+    redirect("/journey");
   }
 
   return (

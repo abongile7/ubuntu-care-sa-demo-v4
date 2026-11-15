@@ -31,6 +31,27 @@ const quickLogins = [
     password: "Demo123!",
     accent: "admin",
     detail: "Admissions verification, funding, and exports"
+  },
+  {
+    label: "Ambulance crew",
+    email: "paramedic@ubuntucare.demo",
+    password: "Demo123!",
+    accent: "nurse",
+    detail: "Assigned dispatch, transport, and hospital handover"
+  },
+  {
+    label: "Hospital billing",
+    email: "billing@ubuntucare.demo",
+    password: "Demo123!",
+    accent: "admin",
+    detail: "Eligibility, authorisation, invoices, and claims"
+  },
+  {
+    label: "Medical aid",
+    email: "insurer@ubuntucare.demo",
+    password: "Demo123!",
+    accent: "doctor",
+    detail: "Consented claim packets and simulated review"
   }
 ];
 
@@ -68,7 +89,7 @@ export function LoginPanel() {
         return;
       }
 
-      router.push("/portal");
+      router.push("/journey");
       router.refresh();
     } catch {
       setMessage("Network error while signing in.");
@@ -93,6 +114,7 @@ export function LoginPanel() {
           Each seeded role opens a visibly different workspace with its own colour accents, actions, and hospital
           priorities. Use the quick cards below during the presentation for instant switching.
         </p>
+        <p>Demo only. Use fictional patient information; these shared accounts are for presentations.</p>
 
         <div className="quick-login-grid">
           {quickLogins.map((item) => (

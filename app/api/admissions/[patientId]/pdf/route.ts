@@ -1,20 +1,21 @@
 import { NextResponse } from "next/server";
-import { requireAuthSession } from "@/lib/auth";
+import { requireLegacySession } from "@/lib/auth";
 import { hospitalMeta } from "@/lib/demo-data";
 import { buildAdmissionsPdf } from "@/lib/pdf";
 import { prisma } from "@/lib/prisma";
+import { patientAccessWhere } from "@/lib/patient-access";
 
 export async function GET(
   _request: Request,
-  context: { params: Promise<Promise<{ patientId: string }> | { patientId: string }> }
+  context: { params: Promise<{ patientId: string }> }
 ) {
   try {
-    const session = await requireAuthSession();
+    const session = await requireLegacySession();
     const params = await context.params;
     const patientId = params.patientId;
 
-    const patient = await prisma.patientProfile.findUnique({
-      where: { id: patientId }
+    const patient = await prisma.patientProfile.findFirst({
+      where: patientAccessWhere(session.user, patientId)
     });
 
     if (!patient) {
@@ -45,16 +46,18 @@ export async function GET(
 
     return new NextResponse(pdf, {
       headers: {
+        "Cache-Control": "private, no-store",
+        Vary: "Cookie",
         "Content-Type": "application/pdf",
         "Content-Disposition": `inline; filename="${patient.fullName.replace(/\s+/g, "-").toLowerCase()}-admissions-summary.pdf"`
       }
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to build admissions PDF.";
-    const status = message === "UNAUTHENTICATED" ? 401 : 500;
+    const status = message === "UNAUTHENTICATED" ? 401 : message === "FORBIDDEN" ? 403 : 500;
 
     return NextResponse.json(
-      { ok: false, message: status === 401 ? "Sign in to continue." : message },
+      { ok: false, message: status === 401 ? "Sign in to continue." : status === 403 ? "This role cannot access the detailed hospital workspace." : message },
       { status }
     );
   }

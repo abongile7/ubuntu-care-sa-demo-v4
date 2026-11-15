@@ -40,7 +40,19 @@ const roleCards = [
   },
   {
     title: "Admin command centre",
-    detail: "Admissions completeness, ambulance/casualty arrivals, transfers, transport, funding, paperwork replacement, and email queue."
+    detail: "Patient registration, encounters, ambulance dispatch, admissions, identity checks and funding coordination."
+  },
+  {
+    title: "Ambulance workspace",
+    detail: "Assigned dispatches, scene assessment, simulated calls, transport and hospital handover."
+  },
+  {
+    title: "Hospital billing",
+    detail: "Simulated eligibility and authorisation, invoice lines, claim validation, submission and payment tracking."
+  },
+  {
+    title: "Medical-aid review",
+    detail: "Consented claim packets for the reviewer's scheme, with approval, rejection and information requests."
   }
 ];
 
@@ -54,7 +66,7 @@ const workflows = [
 ];
 
 const stats = [
-  { value: "4", label: "Role workspaces" },
+  { value: "7", label: "Role workspaces" },
   { value: "8+", label: "Hospital modules" },
   { value: "Mobile", label: "Responsive UI" },
   { value: "Paperless", label: "Document flow" }
@@ -79,11 +91,11 @@ export function LandingPage() {
         <section className="hero-section">
           <div className="shell hero-grid">
             <div className="hero-copy">
-              <span className="eyebrow-pill">Broad hospital operations demo · South Africa-ready</span>
-              <h1>From casualty to ward, theatre, transport, radiology, labs, and admin — all in one app.</h1>
+              <span className="eyebrow-pill">Fictional-data prototype · South Africa</span>
+              <h1>From the first emergency call to hospital care, discharge, and a simpler claim.</h1>
               <p className="lead">
-                UbuntuCare now demos a broader paperless hospital platform with real-seeming role separation,
-                mobile-friendly screens, and South African admission and transfer workflows.
+                Follow one fictional patient's journey across seven workspaces. Ambulance handover, clinical care,
+                identity checks, medical aid and claims connect in one demo. External services and payments are simulated.
               </p>
 
               <div className="hero-actions">

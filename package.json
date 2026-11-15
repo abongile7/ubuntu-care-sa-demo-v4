@@ -2,19 +2,24 @@
   "name": "ubuntu-care-sa-demo",
   "version": "4.0.0",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
-    "db:push": "prisma db push",
+    "db:push": "node scripts/prepare-sqlite.mjs && prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "db:setup": "prisma db push && tsx prisma/seed.ts",
-    "postinstall": "prisma generate"
+    "db:setup": "node scripts/prepare-sqlite.mjs && prisma db push && tsx prisma/seed.ts",
+    "postinstall": "prisma generate",
+    "test": "node --import tsx --test --test-concurrency=1 tests/*.test.ts",
+    "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
     "@prisma/client": "^6.0.0",
     "bcryptjs": "^3.0.3",
-    "next": "15.5.14",
+    "next": "15.5.29",
     "pdf-lib": "^1.17.1",
     "react": "19.0.0",
     "react-dom": "19.0.0"

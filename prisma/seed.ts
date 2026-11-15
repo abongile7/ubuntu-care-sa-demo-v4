@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { randomUUID } from "node:crypto";
 import { PrismaClient, Role, Channel } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -8,6 +9,7 @@ async function ensureUser(params: {
   name: string;
   role: Role;
   unit: string;
+  organization?: string;
   passwordHash: string;
 }) {
   return prisma.user.upsert({
@@ -16,14 +18,16 @@ async function ensureUser(params: {
       name: params.name,
       passwordHash: params.passwordHash,
       role: params.role,
-      unit: params.unit
+      unit: params.unit,
+      organization: params.organization ?? ""
     },
     create: {
       name: params.name,
       email: params.email,
       passwordHash: params.passwordHash,
       role: params.role,
-      unit: params.unit
+      unit: params.unit,
+      organization: params.organization ?? ""
     }
   });
 }
@@ -73,10 +77,56 @@ async function main() {
       role: Role.admin,
       unit: "Admissions Command Centre",
       passwordHash
+    }),
+    ensureUser({
+      email: "paramedic@ubuntucare.demo",
+      name: "Thandi Ndlovu",
+      role: Role.paramedic,
+      unit: "Demo Ambulance Crew A",
+      passwordHash
+    }),
+    ensureUser({
+      email: "paramedic2@ubuntucare.demo",
+      name: "David Molefe",
+      role: Role.paramedic,
+      unit: "Demo Ambulance Crew B",
+      passwordHash
+    }),
+    ensureUser({
+      email: "billing@ubuntucare.demo",
+      name: "Zanele Dube",
+      role: Role.billing,
+      unit: "Hospital Billing",
+      passwordHash
+    }),
+    ensureUser({
+      email: "insurer@ubuntucare.demo",
+      name: "Demo Medical Aid Reviewer",
+      role: Role.insurer,
+      unit: "Demo Claims Review",
+      organization: "Discovery Health Medical Scheme",
+      passwordHash
+    }),
+    ensureUser({
+      email: "insurer2@ubuntucare.demo",
+      name: "Second Demo Medical Aid Reviewer",
+      role: Role.insurer,
+      unit: "Demo Claims Review",
+      organization: "Momentum Medical Scheme",
+      passwordHash
     })
   ]);
 
   await prisma.session.deleteMany();
+  await prisma.careClaimLine.deleteMany();
+  await prisma.careClaim.deleteMany();
+  await prisma.careIdentityCheck.deleteMany();
+  await prisma.careEligibilityCheck.deleteMany();
+  await prisma.careLabOrder.deleteMany();
+  await prisma.careNote.deleteMany();
+  await prisma.careCall.deleteMany();
+  await prisma.careAuditEvent.deleteMany();
+  await prisma.careEncounter.deleteMany();
   await prisma.arrivalRecord.deleteMany();
   await prisma.emailLog.deleteMany();
   await prisma.documentRecord.deleteMany();
@@ -753,7 +803,101 @@ async function main() {
     ]
   });
 
-  console.log("Demo database seeded.");
+  const now = new Date();
+  const earlier = (minutes: number) => new Date(now.getTime() - minutes * 60_000);
+  const careReference = (prefix: string) => `${prefix}-${randomUUID().toUpperCase()}`;
+  const adminUser = seededUsers[5];
+  const firstCrew = seededUsers[6];
+  const secondCrew = seededUsers[7];
+
+  await prisma.careEncounter.create({
+    data: {
+      reference: careReference("ENC"),
+      patientId: ayanda.id,
+      status: "REQUESTED",
+      crewUserId: firstCrew.id,
+      chiefComplaint: "DEMO — headache and dizziness; ambulance assessment requested.",
+      location: "Demo pickup point, Rosebank, Johannesburg",
+      triage: "Yellow",
+      createdById: adminUser.id,
+      openedAt: earlier(15),
+      createdAt: earlier(15),
+      calls: {
+        create: {
+          direction: "INBOUND",
+          purpose: "EMS",
+          contactName: "Fictional caller",
+          phone: "+27 10 555 0100",
+          summary: "DEMO emergency call logged for ambulance dispatch. No real call was made.",
+          status: "SIMULATED_COMPLETED",
+          providerReference: careReference("SIM-CALL"),
+          createdById: adminUser.id,
+          createdByName: adminUser.name,
+          createdAt: earlier(15)
+        }
+      },
+      auditEvents: {
+        create: {
+          actorId: adminUser.id,
+          actorName: adminUser.name,
+          actorRole: Role.admin,
+          action: "ENCOUNTER_CREATED",
+          details: "Fictional ambulance encounter opened for the connected-care demo.",
+          createdAt: earlier(15)
+        }
+      }
+    }
+  });
+
+  await prisma.careEncounter.create({
+    data: {
+      reference: careReference("ENC"),
+      patientId: pieter.id,
+      status: "ADMITTED",
+      version: 5,
+      crewUserId: secondCrew.id,
+      chiefComplaint: "DEMO — transferred for assessment following chest discomfort.",
+      location: "Demo Cardiac Stepdown, Johannesburg",
+      triage: "Orange",
+      ward: "Cardiac Stepdown",
+      bed: "C4-09",
+      createdById: adminUser.id,
+      openedAt: earlier(90),
+      createdAt: earlier(90),
+      notes: {
+        create: {
+          category: "Handover",
+          body: "DEMO — Crew B handed the fictional patient to the receiving nurse. Referral information reviewed at bedside.",
+          authorId: secondCrew.id,
+          authorName: secondCrew.name,
+          authorRole: Role.paramedic,
+          createdAt: earlier(60)
+        }
+      },
+      auditEvents: {
+        create: [
+          {
+            actorId: adminUser.id,
+            actorName: adminUser.name,
+            actorRole: Role.admin,
+            action: "ENCOUNTER_CREATED",
+            details: "Fictional inter-facility transfer encounter opened.",
+            createdAt: earlier(90)
+          },
+          {
+            actorId: adminUser.id,
+            actorName: adminUser.name,
+            actorRole: Role.admin,
+            action: "STATUS_ADMITTED",
+            details: "Demo admission completed to Cardiac Stepdown.",
+            createdAt: earlier(45)
+          }
+        ]
+      }
+    }
+  });
+
+  console.log("Demo database seeded with fictional records and simulated connected-care encounters.");
 }
 
 main()
