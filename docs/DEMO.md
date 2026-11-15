@@ -1,34 +1,33 @@
-# Focused fictional-patient demo
+# Complete fictional-patient walkthrough
 
-Demonstrate one narrow workflow: record an arrival, coordinate care records across staff roles, and show the same patient's results in the patient portal. Describe the larger hospital journey as a roadmap.
+Use Ayanda Mokoena (`UC-2026-00081`) throughout. Seeding creates a requested ambulance encounter assigned to crew A and a separate admitted encounter for Pieter assigned to crew B. Always check the selected patient before acting.
 
-## Prepare
+All checks, calls, submissions and payments are simulated. Use separate browser profiles for roles, or sign out and back in. The login cards open the connected journey at `/journey`.
 
-1. Follow the setup instructions in the [README](../README.md).
-2. Keep the seeded patient **Ayanda Mokoena**, file **UC-2026-00081**, as the case throughout. Staff must select this patient in **Switch patient case** after every login.
-3. Sign out between roles, or use separate browser profiles. Ordinary tabs share the same login session.
-4. Use fictional entries and uploads. Seeded appointments and results have fixed April 2026 dates; enter a new appointment date for the presentation.
+| Step | Role | Visible action and result |
+| --- | --- | --- |
+| 1 | Admissions | Choose Ayanda. In **Care journey**, confirm consent choices. In **Identity & medical aid**, confirm the purpose/consent and simulate identity verification. Check eligibility and request authorisation. Try unavailable/declined scenarios if useful, then repeat with eligible/approved for the final claim. |
+| 2 | Admissions | In **Care journey**, log a fictional inbound EMS call if needed and select **Move to dispatched**. |
+| 3 | Ambulance crew | Sign in as crew A. Move to **on scene**, then **in transit**. Save handover notes describing fictional assessment and receiving staff. Log a simulated coordination call. Move to **handed over**. Crew B cannot open crew A's assigned encounter. |
+| 4 | Admissions | Select Ayanda, enter ward and bed, then move to **admitted**. |
+| 5 | Nurse | Move to **in care**. Open **Clinical care**, enter fictional observations and save. |
+| 6 | Doctor | Add a clinical note or patient-visible update. Request a fictional lab test, such as **DEMO full blood count**, and enter a clearly fictional medication order. |
+| 7 | Nurse | Record specimen collection, then a fictional result. Select Given/Withheld/Missed for the medication and log simulated administration. |
+| 8 | Patient | Open **Clinical care**. The unreleased lab result is absent. |
+| 9 | Doctor | Review and release the result. The patient can now see it. In **Care journey**, enter a demo diagnosis code such as **R51**, clinical summary and discharge instructions; move to **ready for discharge**. Pending labs must be reviewed or cancelled first. |
+| 10 | Nurse or admissions | Move to **discharged**. This transition does not depend on medical-aid funding or payment. |
+| 11 | Billing | In **Identity & medical aid**, complete eligibility and authorisation if not done earlier. In **Claims**, create a draft and add invoice lines, for example `DEMO-CONSULT`, quantity 1, unit price `750.25`. These are fictional service codes and fees. |
+| 12 | Billing | Validate the claim. The UI lists missing prerequisites. When validation passes, submit to the simulated medical-aid queue. Download the submitted JSON packet if desired. |
+| 13 | Medical aid | Sign in as the Discovery reviewer. Only the consented, submitted packet for that scheme appears. Approve it, request information with a note, or reject it with a reason. The reviewer cannot see the clinical chart or other schemes' claims. |
+| 14 | Billing | For an information request, correct draft lines, validate and resubmit. After approval, record simulated payment. No real claim transmission or funds transfer occurs. |
+| 15 | Patient | View the reviewed result, discharge instructions and claim status. Revoke information sharing in **Care journey** to demonstrate that further medical-aid packet access is denied. |
 
-## Walkthrough
+The activity view records encounter, care, funding and claim events according to the current role. Patient activity is limited to public stage changes; the medical-aid screen exposes submitted claim information rather than the hospital's internal activity log.
 
-| Step | Role | Action | Evidence to show |
-| --- | --- | --- | --- |
-| 1 | Administrator | Select Ayanda. In **Ambulance, casualty, and transfer intake**, register an ambulance arrival with a fictional source and handover note. | The arrivals board shows the entry linked to Ayanda. This records an arrival against an existing profile. |
-| 2 | Administrator | In **Admissions and bookings**, book a ward review at a chosen future date and export the admissions PDF. | The appointment and PDF use the selected patient's record. |
-| 3 | Nurse | Select Ayanda. In **Record blood pressure and daily vitals**, save a new set of fictional observations. | The latest observation appears with recorder and timestamp. |
-| 4 | Doctor | Select Ayanda. Review the observations, add a clearly labelled demo medication order, and enter a fictional laboratory result in **Ampath / lab results** using “Demo laboratory” as provider. | The order and result appear in the same patient's record. The result is manually entered, not received from a live laboratory. |
-| 5 | Nurse | Select Ayanda and the newly created order in **Medication chart and administration**. Log a simulated administration. | The administration record refers to that patient's medication order. |
-| 6 | Doctor | Select Ayanda. In **Documents and release**, create a document with category **Discharge summary**, title **DEMO — care summary**, and fictional follow-up text. | The document register contains the new summary. Creating it does not discharge the patient. |
-| 7 | Patient | Sign in as `patient@ubuntucare.demo`. | The patient portal shows Ayanda's appointment, medication order, latest result, and latest document. |
+## New patient example
 
-## Explain the scope accurately
+Admissions can register a fictional patient at the bottom of **Care journey**, with a name, birth date, fictional ID or passport, email, phone and funding details. Record consent explicitly. Then select that patient in **Open a patient encounter**, choose a crew, reason, pickup location and triage, and open the encounter. This creates an actual persisted record; account invitation/enrolment remains a separate future workflow.
 
-The value demonstrated is persistence and coordination across four role workspaces. Arrival records, observations, orders, results, and documents share a patient profile.
+## Explain the boundaries
 
-The prototype does not yet represent a complete clinical episode. New-patient registration, encounter-based admission and discharge transitions, laboratory orders, clinician review/sign-off, and external integrations need further implementation. Staff permissions are broad in this demo; assignment-based access and a full audit trail remain work for a production design.
-
-For the next increment, define one encounter with explicit arrival, admission, care, and discharge states, together with who may make each transition. Validate that workflow with an intended facility before extending into more departments.
-
-## Discuss deployment concerns
-
-It is reasonable to expect substantial work before a real hospital deployment. The exact obligations and cost depend on the proposed use, the data involved, the deployment model, and the facility's procurement and security requirements. Avoid promising either a universal list of certifications or a fixed multimillion-rand cost without assessing that use case. This synthetic-data presentation demonstrates a concept; it is not evidence of POPIA compliance, clinical validation, or deployment approval.
+This version demonstrates a complete, persisted **simulated** workflow. It does not certify clinical safety, identity authenticity, actual insurance cover or successful real-world claims. A Home Affairs simulation checks the saved fictional patient's identity; it does not retrieve arbitrary people's information. Production services need approved access and implementation against their real contracts.

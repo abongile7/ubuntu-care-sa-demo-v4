@@ -8,7 +8,7 @@ const SESSION_TTL_DAYS = 7;
 
 export type AuthSession = {
   token: string;
-  user: Pick<User, "id" | "name" | "email" | "role" | "unit">;
+  user: Pick<User, "id" | "name" | "email" | "role" | "unit" | "organization">;
 };
 
 function sessionExpiryDate() {
@@ -21,7 +21,7 @@ export async function verifyPassword(password: string, passwordHash: string) {
   return bcrypt.compare(password, passwordHash);
 }
 
-export async function createUserSession(user: Pick<User, "id" | "name" | "email" | "role" | "unit">) {
+export async function createUserSession(user: AuthSession["user"]) {
   const token = crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", "");
   const expiresAt = sessionExpiryDate();
 
@@ -74,7 +74,8 @@ export async function getAuthSession(): Promise<AuthSession | null> {
       name: session.user.name,
       email: session.user.email,
       role: session.user.role,
-      unit: session.user.unit
+      unit: session.user.unit,
+      organization: session.user.organization
     }
   };
 }
@@ -96,6 +97,16 @@ export async function requireAuthSession() {
   const session = await getAuthSession();
   if (!session) {
     throw new Error("UNAUTHENTICATED");
+  }
+  return session;
+}
+
+// The detailed hospital workspace predates the ambulance, billing, and insurer
+// workspaces. Its role checks must not implicitly grant new roles chart access.
+export async function requireLegacySession() {
+  const session = await requireAuthSession();
+  if (!["patient", "doctor", "nurse", "admin"].includes(session.user.role)) {
+    throw new Error("FORBIDDEN");
   }
   return session;
 }

@@ -39,7 +39,8 @@ export async function POST(request: Request) {
     name: user.name,
     email: user.email,
     role: user.role,
-    unit: user.unit
+    unit: user.unit,
+    organization: user.organization
   });
 
   return NextResponse.json({ ok: true });

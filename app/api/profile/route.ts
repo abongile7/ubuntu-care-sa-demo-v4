@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAuthSession } from "@/lib/auth";
+import { requireLegacySession } from "@/lib/auth";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { serializePatient } from "@/lib/serializers";
@@ -25,7 +25,7 @@ function boolValue(value: unknown, fallback: boolean) {
 
 export async function PUT(request: Request) {
   try {
-    const session = await requireAuthSession();
+    const session = await requireLegacySession();
 
     if (session.user.role !== "patient" && session.user.role !== "admin") {
       return NextResponse.json(
@@ -126,10 +126,10 @@ export async function PUT(request: Request) {
     return NextResponse.json({ ok: true, patient: serializePatient(updated) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to save patient profile.";
-    const status = message === "UNAUTHENTICATED" ? 401 : 500;
+    const status = message === "UNAUTHENTICATED" ? 401 : message === "FORBIDDEN" ? 403 : 500;
 
     return NextResponse.json(
-      { ok: false, message: status === 401 ? "Sign in to continue." : message },
+      { ok: false, message: status === 401 ? "Sign in to continue." : status === 403 ? "This role cannot access the detailed hospital workspace." : message },
       { status }
     );
   }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAuthSession } from "@/lib/auth";
+import { requireLegacySession } from "@/lib/auth";
 import { hospitalMeta } from "@/lib/demo-data";
 import { buildAdmissionsPdf } from "@/lib/pdf";
 import { prisma } from "@/lib/prisma";
@@ -10,7 +10,7 @@ export async function GET(
   context: { params: Promise<{ patientId: string }> }
 ) {
   try {
-    const session = await requireAuthSession();
+    const session = await requireLegacySession();
     const params = await context.params;
     const patientId = params.patientId;
 
@@ -54,10 +54,10 @@ export async function GET(
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to build admissions PDF.";
-    const status = message === "UNAUTHENTICATED" ? 401 : 500;
+    const status = message === "UNAUTHENTICATED" ? 401 : message === "FORBIDDEN" ? 403 : 500;
 
     return NextResponse.json(
-      { ok: false, message: status === 401 ? "Sign in to continue." : message },
+      { ok: false, message: status === 401 ? "Sign in to continue." : status === 403 ? "This role cannot access the detailed hospital workspace." : message },
       { status }
     );
   }

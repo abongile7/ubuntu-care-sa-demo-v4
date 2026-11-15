@@ -12,6 +12,9 @@ enum Role {
   doctor
   nurse
   admin
+  paramedic
+  billing
+  insurer
 }
 
 enum Channel {
@@ -32,6 +35,7 @@ model User {
   passwordHash String
   role         Role
   unit         String
+  organization String          @default("")
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
   sessions     Session[]
@@ -122,6 +126,7 @@ model PatientProfile {
   emailLogs                     EmailLog[]
   arrivals                      ArrivalRecord[]
   medicationAdministrations     MedicationAdministration[]
+  encounters                    CareEncounter[]
 
   @@index([facilityFileNumber])
 }
@@ -208,38 +213,38 @@ model VitalRecord {
 }
 
 model MedicationOrder {
-  id             String                     @id @default(cuid())
-  reference      String                     @unique
-  patientId      String
-  prescribedBy   String
+  id               String                     @id @default(cuid())
+  reference        String                     @unique
+  patientId        String
+  prescribedBy     String
   prescribedByRole Role
-  prescribedAt   DateTime                   @default(now())
-  drugName       String
-  dose           String
-  route          String
-  frequency      String
-  indication     String
-  startDate      DateTime
-  endDate        DateTime?
-  status         String
-  patient        PatientProfile             @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  administrations MedicationAdministration[]
+  prescribedAt     DateTime                   @default(now())
+  drugName         String
+  dose             String
+  route            String
+  frequency        String
+  indication       String
+  startDate        DateTime
+  endDate          DateTime?
+  status           String
+  patient          PatientProfile             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  administrations  MedicationAdministration[]
 
   @@index([patientId])
 }
 
 model MedicationAdministration {
-  id             String           @id @default(cuid())
-  reference      String           @unique
-  orderId        String
-  patientId      String
-  administeredBy String
+  id                 String          @id @default(cuid())
+  reference          String          @unique
+  orderId            String
+  patientId          String
+  administeredBy     String
   administeredByRole Role
-  administeredAt DateTime         @default(now())
-  status         String
-  notes          String
-  order          MedicationOrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  patient        PatientProfile   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  administeredAt     DateTime        @default(now())
+  status             String
+  notes              String
+  order              MedicationOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  patient            PatientProfile  @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
   @@index([patientId])
@@ -265,19 +270,19 @@ model LabResult {
 }
 
 model TheatreCase {
-  id             String         @id @default(cuid())
-  reference      String         @unique
-  patientId      String
-  procedureName  String
-  specialty      String
-  surgeon        String
-  anaesthetist   String
-  theatreRoom    String
-  scheduledAt    DateTime
-  urgency        String
-  status         String
-  notes          String
-  patient        PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  id            String         @id @default(cuid())
+  reference     String         @unique
+  patientId     String
+  procedureName String
+  specialty     String
+  surgeon       String
+  anaesthetist  String
+  theatreRoom   String
+  scheduledAt   DateTime
+  urgency       String
+  status        String
+  notes         String
+  patient       PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
   @@index([patientId, scheduledAt])
 }
@@ -302,31 +307,31 @@ model TransferRecord {
 }
 
 model DocumentRecord {
-  id          String         @id @default(cuid())
-  reference   String         @unique
-  patientId   String
-  category    String
-  title       String
-  body        String
-  authorName  String
-  authorRole  Role
-  createdAt   DateTime       @default(now())
-  patient     PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  id         String         @id @default(cuid())
+  reference  String         @unique
+  patientId  String
+  category   String
+  title      String
+  body       String
+  authorName String
+  authorRole Role
+  createdAt  DateTime       @default(now())
+  patient    PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
   @@index([patientId])
 }
 
 model EmailLog {
-  id          String         @id @default(cuid())
-  reference   String         @unique
-  patientId   String
-  recipient   String
-  subject     String
-  category    String
-  sentBy      String
-  status      String
-  createdAt   DateTime       @default(now())
-  patient     PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  id        String         @id @default(cuid())
+  reference String         @unique
+  patientId String
+  recipient String
+  subject   String
+  category  String
+  sentBy    String
+  status    String
+  createdAt DateTime       @default(now())
+  patient   PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
   @@index([patientId])
 }
@@ -348,4 +353,178 @@ model ArrivalRecord {
   patient       PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
   @@index([patientId, broughtInAt])
+}
+
+model CareEncounter {
+  id                String                 @id @default(cuid())
+  reference         String                 @unique
+  patientId         String
+  status            String                 @default("REQUESTED")
+  version           Int                    @default(0)
+  crewUserId        String?
+  chiefComplaint    String
+  location          String
+  triage            String                 @default("Yellow")
+  ward              String                 @default("")
+  bed               String                 @default("")
+  diagnosisCode     String                 @default("")
+  clinicalSummary   String                 @default("")
+  dischargeSummary  String                 @default("")
+  createdById       String
+  openedAt          DateTime               @default(now())
+  closedAt          DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  patient           PatientProfile         @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  calls             CareCall[]
+  notes             CareNote[]
+  labOrders         CareLabOrder[]
+  identityChecks    CareIdentityCheck[]
+  eligibilityChecks CareEligibilityCheck[]
+  claims            CareClaim[]
+  auditEvents       CareAuditEvent[]
+
+  @@index([patientId, openedAt])
+  @@index([crewUserId, status])
+  @@index([status, updatedAt])
+}
+
+model CareCall {
+  id                String        @id @default(cuid())
+  encounterId       String
+  direction         String
+  purpose           String
+  contactName       String
+  phone             String
+  summary           String
+  status            String        @default("SIMULATED_COMPLETED")
+  providerReference String
+  createdById       String
+  createdByName     String
+  createdAt         DateTime      @default(now())
+  encounter         CareEncounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+
+  @@index([encounterId, createdAt])
+}
+
+model CareNote {
+  id          String        @id @default(cuid())
+  encounterId String
+  category    String
+  body        String
+  authorId    String
+  authorName  String
+  authorRole  Role
+  createdAt   DateTime      @default(now())
+  encounter   CareEncounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+
+  @@index([encounterId, createdAt])
+}
+
+model CareLabOrder {
+  id            String        @id @default(cuid())
+  reference     String        @unique
+  encounterId   String
+  testName      String
+  specimen      String
+  status        String        @default("REQUESTED")
+  requestedById String
+  resultSummary String        @default("")
+  abnormalFlag  String        @default("")
+  collectedAt   DateTime?
+  reportedAt    DateTime?
+  reviewedAt    DateTime?
+  reviewedById  String?
+  createdAt     DateTime      @default(now())
+  encounter     CareEncounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+
+  @@index([encounterId, status])
+}
+
+model CareIdentityCheck {
+  id                String        @id @default(cuid())
+  encounterId       String
+  status            String
+  providerReference String
+  idLast4           String
+  purpose           String
+  consentRecordedAt DateTime
+  checkedById       String
+  createdAt         DateTime      @default(now())
+  encounter         CareEncounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+
+  @@index([encounterId, createdAt])
+}
+
+model CareEligibilityCheck {
+  id                     String        @id @default(cuid())
+  encounterId            String
+  scheme                 String
+  memberNumberMasked     String
+  status                 String
+  authorizationStatus    String        @default("NOT_REQUESTED")
+  authorizationReference String        @default("")
+  providerReference      String
+  coPaymentCents         Int           @default(0)
+  checkedById            String
+  createdAt              DateTime      @default(now())
+  encounter              CareEncounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+
+  @@index([encounterId, createdAt])
+}
+
+model CareClaim {
+  id                     String          @id @default(cuid())
+  reference              String          @unique
+  encounterId            String
+  scheme                 String
+  memberNumberMasked     String
+  status                 String          @default("DRAFT")
+  version                Int             @default(0)
+  diagnosisCode          String
+  authorizationReference String          @default("")
+  totalCents             Int             @default(0)
+  patientLiabilityCents  Int             @default(0)
+  reviewNote             String          @default("")
+  providerReference      String          @default("")
+  snapshotJson           String          @default("{}")
+  sharedWithInsurer      Boolean         @default(false)
+  createdById            String
+  submittedAt            DateTime?
+  paidAt                 DateTime?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  encounter              CareEncounter   @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  lineItems              CareClaimLine[]
+
+  @@index([encounterId, createdAt])
+  @@index([scheme, sharedWithInsurer, status])
+}
+
+model CareClaimLine {
+  id             String    @id @default(cuid())
+  claimId        String
+  serviceCode    String
+  description    String
+  quantity       Int
+  unitPriceCents Int
+  totalCents     Int
+  createdAt      DateTime  @default(now())
+  claim          CareClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
+
+  @@index([claimId])
+}
+
+model CareAuditEvent {
+  id          String        @id @default(cuid())
+  encounterId String?
+  actorId     String
+  actorName   String
+  actorRole   Role
+  action      String
+  details     String        @default("")
+  createdAt   DateTime      @default(now())
+  encounter   CareEncounter? @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+
+  @@index([encounterId, createdAt])
 }

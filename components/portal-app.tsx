@@ -1079,6 +1079,7 @@ export function PortalApp({ initialSession }: { initialSession: SessionUser }) {
     <div className={`portal-shell ${themeClass}`}>
       <header className="surface-card portal-header">
         <div>
+          <a href="/journey">← Connected care journey</a>
           <span className="section-kicker">
             {hospitalMeta.name} · {session.role.toUpperCase()} workspace
           </span>

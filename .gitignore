@@ -1,5 +1,7 @@
 node_modules
 .next
-.env
-prisma/dev.db
+.env*
+!.env.example
+*.db
+*.db-*
 tsconfig.tsbuildinfo

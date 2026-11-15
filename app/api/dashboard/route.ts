@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAuthSession } from "@/lib/auth";
+import { requireLegacySession } from "@/lib/auth";
 import { hospitalMeta, staffDirectory } from "@/lib/demo-data";
 import { prisma } from "@/lib/prisma";
 import { patientAccessWhere } from "@/lib/patient-access";
@@ -62,7 +62,7 @@ function average<T>(items: T[], getValue: (item: T) => number) {
 
 export async function GET(request: Request) {
   try {
-    const session = await requireAuthSession();
+    const session = await requireLegacySession();
     const url = new URL(request.url);
     const requestedPatientId = url.searchParams.get("patientId");
     const isPatient = session.user.role === "patient";
@@ -238,12 +238,12 @@ export async function GET(request: Request) {
     }, { headers: { "Cache-Control": "private, no-store", Vary: "Cookie" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to load dashboard.";
-    const status = message === "UNAUTHENTICATED" ? 401 : 500;
+    const status = message === "UNAUTHENTICATED" ? 401 : message === "FORBIDDEN" ? 403 : 500;
 
     return NextResponse.json(
       {
         ok: false,
-        message: status === 401 ? "Sign in to continue." : message
+        message: status === 401 ? "Sign in to continue." : status === 403 ? "This role cannot access the detailed hospital workspace." : message
       },
       { status }
     );

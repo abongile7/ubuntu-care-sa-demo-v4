@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { requireAuthSession } from "@/lib/auth";
+import { requireLegacySession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
   try {
-    const session = await requireAuthSession();
+    const session = await requireLegacySession();
 
     if (session.user.role !== "admin" && session.user.role !== "nurse") {
       return NextResponse.json({ ok: false, message: "Only admin or nursing staff can register arrivals." }, { status: 403 });
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to register arrival.";
-    const status = message === "UNAUTHENTICATED" ? 401 : 500;
-    return NextResponse.json({ ok: false, message: status === 401 ? "Sign in to continue." : message }, { status });
+    const status = message === "UNAUTHENTICATED" ? 401 : message === "FORBIDDEN" ? 403 : 500;
+    return NextResponse.json({ ok: false, message: status === 401 ? "Sign in to continue." : status === 403 ? "This role cannot access the detailed hospital workspace." : message }, { status });
   }
 }

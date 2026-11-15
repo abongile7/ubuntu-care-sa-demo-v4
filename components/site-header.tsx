@@ -20,7 +20,7 @@ export function SiteHeader() {
         </nav>
 
         <div className="nav-actions">
-          <Link className="button button-secondary" href="/portal">
+          <Link className="button button-secondary" href="/journey">
             Open portal
           </Link>
           <Link className="button button-primary" href="/login">

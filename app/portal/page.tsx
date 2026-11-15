@@ -10,6 +10,8 @@ export default async function PortalPage() {
     redirect("/login");
   }
 
+  if (!["patient", "doctor", "nurse", "admin"].includes(user.role)) redirect("/journey");
+
   return (
     <main className="portal-page">
       <div className="shell portal-page-shell">
