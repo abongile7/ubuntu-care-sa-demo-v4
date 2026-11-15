@@ -15,6 +15,7 @@ enum Role {
   paramedic
   billing
   insurer
+  referring_doctor
 }
 
 enum Channel {
@@ -356,33 +357,42 @@ model ArrivalRecord {
 }
 
 model CareEncounter {
-  id                String                 @id @default(cuid())
-  reference         String                 @unique
-  patientId         String
-  status            String                 @default("REQUESTED")
-  version           Int                    @default(0)
-  crewUserId        String?
-  chiefComplaint    String
-  location          String
-  triage            String                 @default("Yellow")
-  ward              String                 @default("")
-  bed               String                 @default("")
-  diagnosisCode     String                 @default("")
-  clinicalSummary   String                 @default("")
-  dischargeSummary  String                 @default("")
-  createdById       String
-  openedAt          DateTime               @default(now())
-  closedAt          DateTime?
-  createdAt         DateTime               @default(now())
-  updatedAt         DateTime               @updatedAt
-  patient           PatientProfile         @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  calls             CareCall[]
-  notes             CareNote[]
-  labOrders         CareLabOrder[]
-  identityChecks    CareIdentityCheck[]
-  eligibilityChecks CareEligibilityCheck[]
-  claims            CareClaim[]
-  auditEvents       CareAuditEvent[]
+  id                   String                 @id @default(cuid())
+  reference            String                 @unique
+  patientId            String
+  status               String                 @default("REQUESTED")
+  version              Int                    @default(0)
+  crewUserId           String?
+  chiefComplaint       String
+  location             String
+  triage               String                 @default("Yellow")
+  ward                 String                 @default("")
+  bed                  String                 @default("")
+  diagnosisCode        String                 @default("")
+  clinicalSummary      String                 @default("")
+  dischargeSummary     String                 @default("")
+  createdById          String
+  openedAt             DateTime               @default(now())
+  closedAt             DateTime?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  patient              PatientProfile         @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  calls                CareCall[]
+  notes                CareNote[]
+  labOrders            CareLabOrder[]
+  identityChecks       CareIdentityCheck[]
+  eligibilityChecks    CareEligibilityCheck[]
+  claims               CareClaim[]
+  auditEvents          CareAuditEvent[]
+  portalThreads        PortalThread[]
+  portalDocuments      PortalDocument[]
+  portalAppointments   PortalAppointment[]
+  portalConcerns       PortalConcern[]
+  portalRecordRequests PortalRecordRequest[]
+  portalTasks          PortalTask[]
+  portalNotifications  PortalNotification[]
+  portalOutbox         PortalOutbox[]
+  portalReminders      PortalReminder[]
 
   @@index([patientId, openedAt])
   @@index([crewUserId, status])
@@ -516,15 +526,325 @@ model CareClaimLine {
 }
 
 model CareAuditEvent {
-  id          String        @id @default(cuid())
+  id          String         @id @default(cuid())
   encounterId String?
   actorId     String
   actorName   String
   actorRole   Role
   action      String
-  details     String        @default("")
-  createdAt   DateTime      @default(now())
+  details     String         @default("")
+  createdAt   DateTime       @default(now())
   encounter   CareEncounter? @relation(fields: [encounterId], references: [id], onDelete: Cascade)
 
   @@index([encounterId, createdAt])
+}
+
+model PortalThread {
+  id              String               @id @default(cuid())
+  encounterId     String
+  type            String
+  subject         String
+  claimId         String?
+  recordRequestId String?
+  createdById     String
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  encounter       CareEncounter        @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  members         PortalThreadMember[]
+  messages        PortalMessage[]
+
+  @@index([encounterId, updatedAt])
+  @@index([claimId])
+  @@index([recordRequestId])
+}
+
+model PortalThreadMember {
+  id         String       @id @default(cuid())
+  threadId   String
+  userId     String
+  lastReadAt DateTime?
+  thread     PortalThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, userId])
+  @@index([userId, threadId])
+}
+
+model PortalMessage {
+  id                String       @id @default(cuid())
+  threadId          String
+  authorId          String
+  authorName        String
+  authorRole        Role
+  body              String
+  attachmentIdsJson String       @default("[]")
+  createdAt         DateTime     @default(now())
+  thread            PortalThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+}
+
+model PortalDocument {
+  id              String                  @id @default(cuid())
+  encounterId     String
+  title           String
+  kind            String
+  visibility      String
+  claimId         String?
+  recordRequestId String?
+  createdById     String
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  encounter       CareEncounter           @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  versions        PortalDocumentVersion[]
+
+  @@index([encounterId, visibility, updatedAt])
+  @@index([claimId])
+  @@index([recordRequestId])
+}
+
+model PortalDocumentVersion {
+  id                       String            @id @default(cuid())
+  documentId               String
+  version                  Int
+  title                    String
+  body                     String
+  contentHash              String
+  status                   String            @default("DRAFT")
+  requiresPatientSignature Boolean           @default(false)
+  createdById              String
+  publishedAt              DateTime?
+  createdAt                DateTime          @default(now())
+  document                 PortalDocument    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  files                    PortalFile[]
+  signatures               PortalSignature[]
+
+  @@unique([documentId, version])
+  @@index([documentId, status])
+}
+
+model PortalFile {
+  id           String                @id @default(cuid())
+  versionId    String
+  originalName String
+  mimeType     String
+  size         Int
+  sha256       String
+  bytes        Bytes
+  uploadedById String
+  createdAt    DateTime              @default(now())
+  version      PortalDocumentVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@index([versionId])
+}
+
+model PortalSignature {
+  id          String                @id @default(cuid())
+  versionId   String
+  signerId    String
+  signerName  String
+  signerRole  Role
+  type        String                @default("TYPED_ACKNOWLEDGEMENT")
+  contentHash String
+  statement   String
+  createdAt   DateTime              @default(now())
+  version     PortalDocumentVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@unique([versionId, signerId])
+  @@index([signerId, createdAt])
+}
+
+model PortalAppointment {
+  id                  String           @id @default(cuid())
+  reference           String           @unique
+  encounterId         String
+  clinicianId         String
+  title               String
+  department          String
+  startsAt            DateTime
+  endsAt              DateTime
+  mode                String
+  status              String           @default("REQUESTED")
+  version             Int              @default(0)
+  createdById         String
+  patientInstructions String           @default("")
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  encounter           CareEncounter    @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  reminders           PortalReminder[]
+  videoRoom           PortalVideoRoom?
+
+  @@index([encounterId, startsAt])
+  @@index([clinicianId, status, startsAt, endsAt])
+}
+
+model PortalReminder {
+  id            String             @id @default(cuid())
+  appointmentId String?
+  encounterId   String
+  userId        String
+  channel       String
+  dueAt         DateTime
+  status        String             @default("PENDING")
+  dedupeKey     String             @unique
+  deliveredAt   DateTime?
+  createdAt     DateTime           @default(now())
+  appointment   PortalAppointment? @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  encounter     CareEncounter      @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+
+  @@index([status, dueAt])
+  @@index([userId, dueAt])
+  @@index([appointmentId])
+  @@index([encounterId])
+}
+
+model PortalNotification {
+  id          String        @id @default(cuid())
+  encounterId String
+  userId      String
+  title       String
+  body        String
+  kind        String
+  link        String        @default("/connect")
+  dedupeKey   String        @unique
+  readAt      DateTime?
+  createdAt   DateTime      @default(now())
+  encounter   CareEncounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+  @@index([encounterId, createdAt])
+}
+
+model PortalOutbox {
+  id              String        @id @default(cuid())
+  encounterId     String
+  recipientUserId String?
+  recipientEmail  String
+  subject         String
+  body            String
+  category        String
+  status          String        @default("QUEUED_SIMULATED")
+  dedupeKey       String        @unique
+  createdById     String
+  deliveredAt     DateTime?
+  createdAt       DateTime      @default(now())
+  encounter       CareEncounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+
+  @@index([encounterId, createdAt])
+  @@index([recipientUserId, createdAt])
+  @@index([status, createdAt])
+}
+
+model PortalConcern {
+  id             String                @id @default(cuid())
+  encounterId    String
+  category       String
+  body           String
+  urgency        String                @default("NORMAL")
+  status         String                @default("OPEN")
+  version        Int                   @default(0)
+  createdById    String
+  assignedUserId String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  encounter      CareEncounter         @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  updates        PortalConcernUpdate[]
+
+  @@index([encounterId, createdAt])
+  @@index([assignedUserId, status, updatedAt])
+}
+
+model PortalConcernUpdate {
+  id         String        @id @default(cuid())
+  concernId  String
+  authorId   String
+  authorName String
+  authorRole Role
+  body       String
+  status     String
+  createdAt  DateTime      @default(now())
+  concern    PortalConcern @relation(fields: [concernId], references: [id], onDelete: Cascade)
+
+  @@index([concernId, createdAt])
+}
+
+model PortalRecordRequest {
+  id                 String        @id @default(cuid())
+  reference          String        @unique
+  encounterId        String
+  providerName       String
+  providerEmail      String
+  providerUserId     String?
+  purpose            String
+  scope              String
+  consentRecordedAt  DateTime
+  expiresAt          DateTime
+  status             String        @default("REQUESTED")
+  version            Int           @default(0)
+  createdById        String
+  assignedStaffId    String?
+  fulfilledVersionId String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  encounter          CareEncounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+
+  @@index([encounterId, createdAt])
+  @@index([providerUserId, status, expiresAt])
+  @@index([assignedStaffId, status])
+}
+
+model PortalTask {
+  id             String        @id @default(cuid())
+  encounterId    String
+  department     String
+  title          String
+  priority       String        @default("NORMAL")
+  status         String        @default("OPEN")
+  version        Int           @default(0)
+  assignedUserId String
+  createdById    String
+  dueAt          DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  encounter      CareEncounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+
+  @@index([encounterId, department, status])
+  @@index([assignedUserId, status, dueAt])
+}
+
+model PortalVideoRoom {
+  id            String                   @id @default(cuid())
+  appointmentId String                   @unique
+  status        String                   @default("WAITING")
+  startedAt     DateTime?
+  endedAt       DateTime?
+  createdAt     DateTime                 @default(now())
+  appointment   PortalAppointment        @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  participants  PortalVideoParticipant[]
+  signals       PortalVideoSignal[]
+}
+
+model PortalVideoParticipant {
+  id                String          @id @default(cuid())
+  roomId            String
+  userId            String
+  consentRecordedAt DateTime
+  joinedAt          DateTime        @default(now())
+  room              PortalVideoRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([userId])
+}
+
+model PortalVideoSignal {
+  id        String          @id @default(cuid())
+  roomId    String
+  senderId  String
+  kind      String
+  payload   String
+  expiresAt DateTime
+  createdAt DateTime        @default(now())
+  room      PortalVideoRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, expiresAt, createdAt])
+  @@index([expiresAt])
 }

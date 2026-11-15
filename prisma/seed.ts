@@ -1,8 +1,16 @@
 import bcrypt from "bcryptjs";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { PrismaClient, Role, Channel } from "@prisma/client";
 
 const prisma = new PrismaClient();
+
+// Keep the canonical field order aligned with lib/portal-communications.ts.
+// Published demo documents start without files; their exact Unicode text is hashed.
+function seedDocumentHash(documentId: string, version: number, title: string, body: string) {
+  return createHash("sha256")
+    .update(JSON.stringify({ documentId, version, title, body, files: [] }), "utf8")
+    .digest("hex");
+}
 
 async function ensureUser(params: {
   email: string;
@@ -114,10 +122,36 @@ async function main() {
       unit: "Demo Claims Review",
       organization: "Momentum Medical Scheme",
       passwordHash
+    }),
+    ensureUser({
+      email: "referring@ubuntucare.demo",
+      name: "Dr. Priya Nene",
+      role: Role.referring_doctor,
+      unit: "Referring Practice",
+      organization: "Demo Family Practice",
+      passwordHash
     })
   ]);
 
   await prisma.session.deleteMany();
+  await prisma.portalVideoSignal.deleteMany();
+  await prisma.portalVideoParticipant.deleteMany();
+  await prisma.portalVideoRoom.deleteMany();
+  await prisma.portalReminder.deleteMany();
+  await prisma.portalAppointment.deleteMany();
+  await prisma.portalSignature.deleteMany();
+  await prisma.portalFile.deleteMany();
+  await prisma.portalDocumentVersion.deleteMany();
+  await prisma.portalDocument.deleteMany();
+  await prisma.portalMessage.deleteMany();
+  await prisma.portalThreadMember.deleteMany();
+  await prisma.portalThread.deleteMany();
+  await prisma.portalConcernUpdate.deleteMany();
+  await prisma.portalConcern.deleteMany();
+  await prisma.portalRecordRequest.deleteMany();
+  await prisma.portalTask.deleteMany();
+  await prisma.portalNotification.deleteMany();
+  await prisma.portalOutbox.deleteMany();
   await prisma.careClaimLine.deleteMany();
   await prisma.careClaim.deleteMany();
   await prisma.careIdentityCheck.deleteMany();
@@ -810,7 +844,7 @@ async function main() {
   const firstCrew = seededUsers[6];
   const secondCrew = seededUsers[7];
 
-  await prisma.careEncounter.create({
+  const ayandaEncounter = await prisma.careEncounter.create({
     data: {
       reference: careReference("ENC"),
       patientId: ayanda.id,
@@ -897,7 +931,226 @@ async function main() {
     }
   });
 
-  console.log("Demo database seeded with fictional records and simulated connected-care encounters.");
+  const patientUser = seededUsers[0];
+  const doctorUser = seededUsers[3];
+  const nurseUser = seededUsers[4];
+  const referringUser = seededUsers[11];
+  const later = (minutes: number) => new Date(now.getTime() + minutes * 60_000);
+
+  const patientDocumentTitle = "Your hospital portal — information and acknowledgement";
+  const patientDocumentBody = [
+    "FICTIONAL DEMO — UbuntuCare private hospital",
+    "Welcome, Ayanda. Your care team uses this portal to share appointment details, documents and messages.",
+    "A typed acknowledgement confirms you have read this version. It is a demonstration and does not replace document-specific clinical consent or a qualified electronic signature.",
+    "Email copies, scheme checks and contacts with external providers are simulated. No external message has been sent.",
+    "For an urgent concern contact the hospital team immediately; for an emergency call 112. This inbox is reviewed by people and is not an emergency service."
+  ].join("\n\n");
+  const patientDocument = await prisma.portalDocument.create({
+    data: {
+      encounterId: ayandaEncounter.id,
+      title: patientDocumentTitle,
+      kind: "PATIENT_INFORMATION",
+      visibility: "PATIENT",
+      createdById: adminUser.id,
+      createdAt: earlier(12)
+    }
+  });
+  await prisma.portalDocumentVersion.create({
+    data: {
+      documentId: patientDocument.id,
+      version: 1,
+      title: patientDocumentTitle,
+      body: patientDocumentBody,
+      contentHash: seedDocumentHash(patientDocument.id, 1, patientDocumentTitle, patientDocumentBody),
+      status: "PUBLISHED",
+      requiresPatientSignature: true,
+      createdById: adminUser.id,
+      publishedAt: earlier(11),
+      createdAt: earlier(12)
+    }
+  });
+
+  const internalDocumentTitle = "Hospital handover planning — fictional case";
+  const internalDocumentBody = [
+    "FICTIONAL DEMO — hospital clinical team only.",
+    "Nursing and the receiving doctor will review the current encounter and record any assessment in the clinical workflow.",
+    "This synthetic coordination note is not a clinical order or an external provider record."
+  ].join("\n\n");
+  const internalDocument = await prisma.portalDocument.create({
+    data: {
+      encounterId: ayandaEncounter.id,
+      title: internalDocumentTitle,
+      kind: "CLINICAL_NOTE",
+      visibility: "INTERNAL",
+      createdById: doctorUser.id,
+      createdAt: earlier(10)
+    }
+  });
+  await prisma.portalDocumentVersion.create({
+    data: {
+      documentId: internalDocument.id,
+      version: 1,
+      title: internalDocumentTitle,
+      body: internalDocumentBody,
+      contentHash: seedDocumentHash(internalDocument.id, 1, internalDocumentTitle, internalDocumentBody),
+      status: "PUBLISHED",
+      createdById: doctorUser.id,
+      publishedAt: earlier(9),
+      createdAt: earlier(10)
+    }
+  });
+
+  const welcomeThread = await prisma.portalThread.create({
+    data: {
+      encounterId: ayandaEncounter.id,
+      type: "CARE",
+      subject: "Welcome to your hospital care team",
+      createdById: adminUser.id,
+      createdAt: earlier(10),
+      members: {
+        create: [
+          { userId: patientUser.id },
+          { userId: doctorUser.id },
+          { userId: adminUser.id, lastReadAt: now }
+        ]
+      },
+      messages: {
+        create: {
+          authorId: adminUser.id,
+          authorName: adminUser.name,
+          authorRole: Role.admin,
+          body: "Welcome, Ayanda. Your hospital care team can answer administrative questions here. Please review the published portal information document and your upcoming video appointment. This fictional demo does not send external emails.",
+          createdAt: earlier(9)
+        }
+      }
+    }
+  });
+
+  const videoAppointment = await prisma.portalAppointment.create({
+    data: {
+      reference: careReference("PAPT"),
+      encounterId: ayandaEncounter.id,
+      clinicianId: doctorUser.id,
+      title: "Hospital follow-up discussion",
+      department: "General Medicine",
+      startsAt: later(48 * 60),
+      endsAt: later(48 * 60 + 30),
+      mode: "VIDEO",
+      status: "CONFIRMED",
+      createdById: adminUser.id,
+      patientInstructions: "Use a private space and allow camera and microphone access when you join. This local demo requires explicit video consent; no recording or external invitation is created.",
+      videoRoom: { create: { status: "WAITING" } }
+    }
+  });
+  await prisma.portalReminder.createMany({
+    data: [patientUser, doctorUser].flatMap((user) =>
+      [24, 1].flatMap((hoursBefore) =>
+        ["IN_APP", "EMAIL"].map((channel) => ({
+          appointmentId: videoAppointment.id,
+          encounterId: ayandaEncounter.id,
+          userId: user.id,
+          channel,
+          dueAt: new Date(videoAppointment.startsAt.getTime() - hoursBefore * 60 * 60_000),
+          dedupeKey: `appointment:${videoAppointment.id}:${user.id}:${hoursBefore}h:${channel}`
+        }))
+      )
+    )
+  });
+
+  const concern = await prisma.portalConcern.create({
+    data: {
+      encounterId: ayandaEncounter.id,
+      category: "Appointment support",
+      body: "Please help me understand how to join the hospital video appointment and where to find my documents.",
+      urgency: "NORMAL",
+      status: "OPEN",
+      createdById: patientUser.id,
+      assignedUserId: nurseUser.id,
+      createdAt: earlier(8),
+      updates: {
+        create: {
+          authorId: adminUser.id,
+          authorName: adminUser.name,
+          authorRole: Role.admin,
+          body: "Your question is in the hospital worklist. A staff member will respond here; this service is not monitored for emergencies.",
+          status: "OPEN",
+          createdAt: earlier(7)
+        }
+      }
+    }
+  });
+
+  const recordRequest = await prisma.portalRecordRequest.create({
+    data: {
+      reference: careReference("PREC"),
+      encounterId: ayandaEncounter.id,
+      providerName: "Demo Family Practice — Dr. Priya Nene",
+      providerEmail: referringUser.email,
+      providerUserId: referringUser.id,
+      purpose: "Hospital review of the patient-approved prior referral summary.",
+      scope: "Prior referral summary and current medication list only. No unrestricted clinical-file access is granted.",
+      consentRecordedAt: earlier(6),
+      expiresAt: later(30 * 24 * 60),
+      status: "SENT_SIMULATED",
+      version: 1,
+      createdById: patientUser.id,
+      assignedStaffId: doctorUser.id,
+      createdAt: earlier(6)
+    }
+  });
+  await prisma.portalTask.create({
+    data: {
+      encounterId: ayandaEncounter.id,
+      department: "Admissions",
+      title: "Confirm portal access and explain the records-request consent scope",
+      priority: "NORMAL",
+      assignedUserId: adminUser.id,
+      createdById: doctorUser.id,
+      dueAt: later(4 * 60)
+    }
+  });
+  await prisma.portalNotification.createMany({
+    data: [
+      {
+        encounterId: ayandaEncounter.id,
+        userId: patientUser.id,
+        title: "Welcome to your hospital portal",
+        body: "Your hospital care team has shared a message and a document for you to read.",
+        kind: "MESSAGE",
+        dedupeKey: `seed:welcome:${welcomeThread.id}:${patientUser.id}`
+      },
+      {
+        encounterId: ayandaEncounter.id,
+        userId: nurseUser.id,
+        title: "Patient support question assigned",
+        body: "A patient support question is waiting in your hospital worklist.",
+        kind: "CONCERN",
+        dedupeKey: `seed:concern:${concern.id}:${nurseUser.id}`
+      },
+      {
+        encounterId: ayandaEncounter.id,
+        userId: referringUser.id,
+        title: "Patient-approved records request",
+        body: "A consent-scoped hospital records request is available in the portal.",
+        kind: "RECORD_REQUEST",
+        dedupeKey: `seed:records:${recordRequest.id}:${referringUser.id}`
+      }
+    ]
+  });
+  await prisma.portalOutbox.create({
+    data: {
+      encounterId: ayandaEncounter.id,
+      recipientUserId: referringUser.id,
+      recipientEmail: referringUser.email,
+      subject: "Demo hospital portal notification",
+      body: "A patient-approved records request is available after signing in to the demo hospital portal. This email is simulated and has not been sent externally.",
+      category: "RECORD_REQUEST",
+      dedupeKey: `seed:records:${recordRequest.id}:email`,
+      createdById: adminUser.id
+    }
+  });
+
+  console.log("Demo database seeded with three fictional patients, simulated connected-care encounters and the private-hospital paperless portal.");
 }
 
 main()

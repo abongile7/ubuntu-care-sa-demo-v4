@@ -57,6 +57,8 @@ const roleCards = [
 ];
 
 const workflows = [
+  "Versioned documents, private uploads, acknowledgements, messages and appointments",
+  "Consented previous-practice records requests and department work queues",
   "Casualty triage and walk-in / ambulance arrivals",
   "Inter-hospital transfer and patient transport coordination",
   "Ward observations, blood pressure charting, and medication administration",
@@ -66,7 +68,7 @@ const workflows = [
 ];
 
 const stats = [
-  { value: "7", label: "Role workspaces" },
+  { value: "8", label: "Role workspaces" },
   { value: "8+", label: "Hospital modules" },
   { value: "Mobile", label: "Responsive UI" },
   { value: "Paperless", label: "Document flow" }
@@ -94,7 +96,7 @@ export function LandingPage() {
               <span className="eyebrow-pill">Fictional-data prototype · South Africa</span>
               <h1>From the first emergency call to hospital care, discharge, and a simpler claim.</h1>
               <p className="lead">
-                Follow one fictional patient's journey across seven workspaces. Ambulance handover, clinical care,
+                Follow one fictional patient's journey across eight workspaces. Ambulance handover, clinical care,
                 identity checks, medical aid and claims connect in one demo. External services and payments are simulated.
               </p>
 

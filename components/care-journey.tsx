@@ -248,6 +248,7 @@ export function CareJourney({ initialSession }: { initialSession: JourneyActor }
           <h1>{roleLabels[role]}</h1>
           <p>One connected journey, with the information your role needs.</p>
           <nav aria-label="Workspace">
+            <a className="cj-button cj-button-secondary" href={`/connect${encounter ? `?encounterId=${encodeURIComponent(encounter.id)}` : ""}`}>Documents & communication ↗</a>
             {tabs.map((item) => (
               <button
                 key={item.id}
