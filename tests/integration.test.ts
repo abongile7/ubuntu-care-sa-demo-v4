@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
-import { cp, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, symlink } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -111,7 +111,7 @@ before(
     const appDirectory = path.join(temporaryDirectory, "app");
     await mkdir(path.join(appDirectory, "prisma"), { recursive: true });
     // Copy only source/configuration: never copy .env, a user's database, or .next.
-    for (const directory of ["app", "components", "lib", "public"]) {
+    for (const directory of ["app", "components", "lib", "public", "scripts"]) {
       await cp(path.join(projectRoot, directory), path.join(appDirectory, directory), {
         recursive: true
       });
@@ -132,7 +132,6 @@ before(
       "dir"
     );
     const databasePath = path.join(temporaryDirectory, "integration.db");
-    await writeFile(databasePath, "");
     const databaseUrl = `file:${databasePath}`;
     const environment: NodeJS.ProcessEnv = {
       ...process.env,
@@ -140,6 +139,11 @@ before(
       NODE_ENV: "development",
       NEXT_TELEMETRY_DISABLED: "1"
     };
+    await run(process.execPath, ["scripts/prepare-sqlite.mjs"], {
+      cwd: appDirectory,
+      env: environment,
+      timeout: 30_000
+    });
     await run(
       process.execPath,
       [
@@ -159,6 +163,17 @@ before(
       env: environment,
       timeout: 60_000
     });
+    const seededContents = await readFile(databasePath);
+    await run(process.execPath, ["scripts/prepare-sqlite.mjs"], {
+      cwd: appDirectory,
+      env: environment,
+      timeout: 30_000
+    });
+    assert.deepEqual(
+      await readFile(databasePath),
+      seededContents,
+      "Preparing an existing SQLite file must preserve its data"
+    );
     database = new PrismaClient({ datasourceUrl: databaseUrl });
     const patient = await database.patientProfile.findFirstOrThrow({
       where: { email: "patient@ubuntucare.demo" }

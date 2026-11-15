@@ -2,13 +2,16 @@
   "name": "ubuntu-care-sa-demo",
   "version": "4.0.0",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
-    "db:push": "prisma db push",
+    "db:push": "node scripts/prepare-sqlite.mjs && prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "db:setup": "prisma db push && tsx prisma/seed.ts",
+    "db:setup": "node scripts/prepare-sqlite.mjs && prisma db push && tsx prisma/seed.ts",
     "postinstall": "prisma generate",
     "test": "node --import tsx --test --test-concurrency=1 tests/*.test.ts",
     "typecheck": "next typegen && tsc --noEmit"
