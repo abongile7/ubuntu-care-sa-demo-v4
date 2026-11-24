@@ -39,6 +39,7 @@ model User {
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
   sessions     Session[]
+  consultations RemoteConsultation[] @relation("ConsultDoctor")
   patient      PatientProfile?
 }
 
@@ -127,6 +128,8 @@ model PatientProfile {
   arrivals                      ArrivalRecord[]
   medicationAdministrations     MedicationAdministration[]
   encounters                    CareEncounter[]
+  invitations                   PatientInvitation[]
+  consultations                 RemoteConsultation[]
 
   @@index([facilityFileNumber])
 }
@@ -527,4 +530,44 @@ model CareAuditEvent {
   encounter   CareEncounter? @relation(fields: [encounterId], references: [id], onDelete: Cascade)
 
   @@index([encounterId, createdAt])
+}
+
+model PatientInvitation {
+  id String @id @default(cuid())
+  patientId String
+  tokenHash String @unique
+  expiresAt DateTime
+  usedAt DateTime?
+  patient PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  @@index([patientId])
+}
+
+model RemoteConsultation {
+  id String @id @default(cuid())
+  patientId String
+  doctorId String
+  mode String
+  reason String
+  scheduledAt DateTime
+  status String @default("REQUESTED")
+  offer String @default("")
+  answer String @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  patient PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor User @relation("ConsultDoctor", fields: [doctorId], references: [id], onDelete: Cascade)
+  messages RemoteMessage[]
+  @@index([patientId, status])
+  @@index([doctorId, status])
+}
+
+model RemoteMessage {
+  id String @id @default(cuid())
+  consultationId String
+  authorId String
+  authorName String
+  body String
+  createdAt DateTime @default(now())
+  consultation RemoteConsultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  @@index([consultationId, createdAt])
 }
