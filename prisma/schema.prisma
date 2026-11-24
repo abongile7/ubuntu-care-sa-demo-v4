@@ -130,6 +130,8 @@ model PatientProfile {
   encounters                    CareEncounter[]
   invitations                   PatientInvitation[]
   consultations                 RemoteConsultation[]
+  paperDocuments                PaperDocument[]
+  preAdmissions                 PreAdmission[]
 
   @@index([facilityFileNumber])
 }
@@ -499,6 +501,7 @@ model CareClaim {
   updatedAt              DateTime        @updatedAt
   encounter              CareEncounter   @relation(fields: [encounterId], references: [id], onDelete: Cascade)
   lineItems              CareClaimLine[]
+  remittances            ClaimRemittance[]
 
   @@index([encounterId, createdAt])
   @@index([scheme, sharedWithInsurer, status])
@@ -570,4 +573,71 @@ model RemoteMessage {
   createdAt DateTime @default(now())
   consultation RemoteConsultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
   @@index([consultationId, createdAt])
+}
+
+model PreAdmission {
+  id String @id @default(cuid())
+  patientId String
+  plannedAt DateTime
+  department String
+  reason String
+  funding String
+  authorization String @default("")
+  status String @default("SUBMITTED")
+  reviewNote String @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  patient PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  @@index([patientId, status])
+}
+
+model PaperDocument {
+  id String @id @default(cuid())
+  patientId String
+  category String
+  title String
+  body String
+  digest String
+  status String @default("ISSUED")
+  requiredRoles String
+  createdById String
+  createdByName String
+  createdAt DateTime @default(now())
+  patient PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  signatures PaperSignature[]
+  attachment PaperAttachment?
+  @@index([patientId, createdAt])
+}
+
+model PaperSignature {
+  id String @id @default(cuid())
+  documentId String
+  signerId String
+  signerName String
+  signerRole Role
+  documentDigest String
+  createdAt DateTime @default(now())
+  document PaperDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  @@unique([documentId, signerRole])
+}
+
+model PaperAttachment {
+  id String @id @default(cuid())
+  documentId String @unique
+  fileName String
+  bytes Bytes
+  digest String
+  document PaperDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
+
+model ClaimRemittance {
+  id String @id @default(cuid())
+  claimId String
+  reference String @unique
+  amountCents Int
+  reason String
+  receivedAt DateTime @default(now())
+  recordedById String
+  claim CareClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  @@index([claimId, receivedAt])
 }
