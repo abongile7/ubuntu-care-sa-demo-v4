@@ -269,6 +269,7 @@ export function CareJourney({ initialSession }: { initialSession: JourneyActor }
             )}
             {["patient", "doctor", "admin"].includes(role) && <a href="/remote">Patient onboarding & remote consultations ↗</a>}
             {["patient","doctor","admin","nurse","billing"].includes(role) && <a href="/paperless">Paperless documents, signing & claims ↗</a>}
+            {["admin","doctor","nurse","paramedic"].includes(role) && <a href="/intake">Arrival & referral command centre ↗</a>}
             <button type="button" disabled={busy} onClick={() => void load()}>
               Refresh records
             </button>

@@ -641,3 +641,39 @@ model ClaimRemittance {
   claim CareClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
   @@index([claimId, receivedAt])
 }
+
+model ArrivalIntake {
+  id String @id @default(cuid())
+  reference String @unique
+  mode String
+  patientLabel String
+  identityStatus String
+  sourceFacility String
+  destinationUnit String
+  eta DateTime?
+  summary String
+  observations String
+  treatment String
+  status String @default("PRE_ALERT")
+  createdById String
+  createdByName String
+  assignedDoctorId String?
+  patientId String?
+  acknowledgedAt DateTime?
+  arrivedAt DateTime?
+  version Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  attachment IntakeAttachment?
+  @@index([assignedDoctorId, status])
+  @@index([createdById, status])
+}
+
+model IntakeAttachment {
+  id String @id @default(cuid())
+  intakeId String @unique
+  fileName String
+  digest String
+  bytes Bytes
+  intake ArrivalIntake @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+}
