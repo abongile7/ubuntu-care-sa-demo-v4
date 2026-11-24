@@ -264,6 +264,7 @@ export function CareJourney({ initialSession }: { initialSession: JourneyActor }
           <div className="cj-sidebar-footer">
             <span className="cj-live-dot" />
             Demo database connected
+            <a href="/sandbox">All national sandbox workspaces ↗</a>
             {["patient", "doctor", "nurse", "admin"].includes(role) && (
               <a href="/portal">Detailed hospital workspace ↗</a>
             )}

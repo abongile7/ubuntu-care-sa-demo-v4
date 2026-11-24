@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: ubuntucare-sa-sandbox
+    runtime: node
+    branch: hospital-onboarding-telehealth
+    plan: starter
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: node scripts/start-sandbox.mjs
+    healthCheckPath: /api/health
+    autoDeployTrigger: off
+    disk:
+      name: synthetic-demo-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        value: file:/var/data/ubuntucare-demo.db
+      - key: SANDBOX_GATE_REQUIRED
+        value: "1"
+      - key: SANDBOX_ACCESS_PASSWORD
+        sync: false
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: REMOTE_ICE_SERVERS
+        value: "[]"

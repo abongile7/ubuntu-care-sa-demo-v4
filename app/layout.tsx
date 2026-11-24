@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "UbuntuCare SA — Connected Care Demo",
+  title: "UbuntuCare SA — National Healthcare Sandbox",
   description:
     "Paperless South African hospital demo with patient, doctor, nurse, and admin workspaces, casualty arrivals, vitals, medications, labs, scans, theatre, transfers, documents, and email queue."
 };

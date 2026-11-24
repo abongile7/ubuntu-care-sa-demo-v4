@@ -92,3 +92,7 @@ Open `/paperless` for planned pre-admission, electronic form issue/signing, supp
 ## Arrival and referral command centre
 
 Open `/intake` for walk-in, elective, ambulance, referral and transfer intake, temporary unidentified records, assigned clinician pre-arrival review and PDF handover. See [partner integration plan](docs/PARTNER-INTEGRATIONS.md). External integrations remain unconnected.
+
+## National sandbox hub
+
+Login now opens `/sandbox`, with role-specific links and guided UAT. `/integration-lab` runs internal synthetic scenarios across partner domains. See [private sandbox deployment](docs/SANDBOX-DEPLOYMENT.md) and `render.yaml` for the access-gated persistent hosting blueprint. No hosted deployment or partner connections are implied.
