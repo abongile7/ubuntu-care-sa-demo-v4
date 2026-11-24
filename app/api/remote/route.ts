@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     const action = text(body.action, "Action", 30);
     if (action === "activate") {
       const code = text(body.code, "Invitation code", 64);
-      const password = text(body.password, "Password", 72);
+      const password = typeof body.password === "string" ? body.password : "";
       if (!/^[a-f0-9]{48}$/.test(code) || password.length < 12 || Buffer.byteLength(password) > 72)
         throw new CareError(400, "Enter a valid invitation and a password of at least 12 characters (72 bytes maximum).");
       const passwordHash = await bcrypt.hash(password, 12);
@@ -139,8 +139,8 @@ export async function POST(request: Request) {
           if (action === "hangup") await tx.remoteConsultation.update({ where: { id }, data: { offer: "", answer: "" } });
           else {
             requireRole(user, action === "offer" ? ["patient"] : ["doctor"]);
-            const sdp = text(body.sdp, "Session description", 65000);
-            if (!sdp.startsWith("v=0")) throw new CareError(400, "Invalid session description.");
+            const sdp = typeof body.sdp === "string" ? body.sdp : "";
+            if (sdp.length > 65000 || !sdp.startsWith("v=0")) throw new CareError(400, "Invalid session description.");
             if (action === "offer" && c.offer) throw new CareError(409, "End the existing call before restarting.");
             if (action === "answer" && (!c.offer || c.answer)) throw new CareError(409, "No unanswered call.");
             await tx.remoteConsultation.update({ where: { id }, data: action === "offer" ? { offer: sdp, answer: "" } : { answer: sdp } });
