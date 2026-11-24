@@ -57,14 +57,15 @@ export async function POST(request:Request){
       const category=text(body.category,"Category",40), config=categories[category];
       if(!config||!config.creators.includes(user.role))throw new CareError(403,"Cannot issue this document type.");
       const title=text(body.title,"Title",160),content=text(body.body,"Document content",12000);
-      let attachment:{fileName:string;bytes:Buffer;digest:string}|undefined;
+      if(content.includes("[complete]"))throw new CareError(400,"Complete template placeholders before issuing.");
+      let attachment:{fileName:string;bytes:Uint8Array<ArrayBuffer>;digest:string}|undefined;
       if(body.file!==undefined){
         if(category!=="SUPPORTING")throw new CareError(400,"Attachments are restricted to supporting documents.");
         const file=typeof body.file==="string"?body.file:"";
         if(!/^[A-Za-z0-9+/]+={0,2}$/.test(file))throw new CareError(400,"Invalid PDF.");
         const bytes=Buffer.from(file,"base64");
         if(bytes.length>2*1024*1024||bytes.subarray(0,5).toString()!=="%PDF-")throw new CareError(400,"Choose a PDF no larger than 2 MiB.");
-        attachment={fileName:text(body.fileName,"Filename",120).replace(/[^a-zA-Z0-9._-]/g,"_"),bytes,digest:digest(bytes)};
+        attachment={fileName:text(body.fileName,"Filename",120).replace(/[^a-zA-Z0-9._-]/g,"_"),bytes:new Uint8Array(bytes),digest:digest(bytes)};
       }
       await prisma.$transaction(async tx=>{
         const patient=await tx.patientProfile.findFirst({where:user.role==="patient"?{userId:user.id}:{id:text(body.patientId,"Patient",100)}});
