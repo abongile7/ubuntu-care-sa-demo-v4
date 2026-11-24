@@ -2,6 +2,7 @@
 import { useState } from "react";
 const all=["patient","admin","doctor","nurse","paramedic","billing","insurer"];
 const modules=[
+ {title:"Hospital operations",href:"/operations",desc:"Ward bed allocation, cleaning status, consumable stock and movement history.",roles:["admin","nurse"]},
  {title:"Connected care & claims",href:"/journey",desc:"Emergency dispatch, admission, treatment, discharge, laboratory and insurer workflows.",roles:all},
  {title:"Patient arrivals & referrals",href:"/intake",desc:"Walk-in, elective, EMS, transfer, temporary identity and secure referral handover.",roles:["admin","doctor","nurse","paramedic"]},
  {title:"Virtual care & activation",href:"/remote",desc:"Appointments, identity onboarding, video/voice, chat and configured telephone fallback.",roles:["patient","admin","doctor"]},

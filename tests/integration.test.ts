@@ -1285,3 +1285,22 @@ test("national sandbox integration scenarios enforce role and synthetic-only bou
  await expectStatus(await request("/api/integration-lab",{role:"admin",method:"POST",body:{domain:"LAB",scenario:"WRONG"}}),400);
  const health=await request("/api/health");await expectStatus(health,200);assert.equal((await health.json()).environment,"synthetic-demo");
 });
+
+test("operations board guards bed occupancy and consumable stock",async()=>{
+ async function op(role:string,action:string,fields:Record<string,unknown>,status=200){const r=await request("/api/operations",{role,method:"POST",body:{action,...fields}});await expectStatus(r,status);}
+ await op("patient","createBed",{code:"TEST-1",ward:"Demo"},403);
+ await op("admin","createBed",{code:"TEST-1",ward:"Demo"});
+ const bed=await database.demoBed.findUniqueOrThrow({where:{code:"TEST-1"}});
+ const intake=await database.arrivalIntake.findFirstOrThrow({where:{status:"ARRIVED"}});
+ await op("nurse","allocate",{id:bed.id,version:0,intakeId:intake.id});
+ await op("nurse","release",{id:bed.id,version:0},409);
+ await op("nurse","release",{id:bed.id,version:1});
+ await op("nurse","clean",{id:bed.id,version:2});
+ assert.equal((await database.demoBed.findUniqueOrThrow({where:{id:bed.id}})).status,"AVAILABLE");
+ await op("admin","createSupply",{code:"GLOVE-TEST",name:"Demo gloves",unit:"box",reorderAt:3});
+ const stock=await database.demoSupply.findUniqueOrThrow({where:{code:"GLOVE-TEST"}});
+ await op("nurse","moveStock",{id:stock.id,version:0,direction:"OUT",quantity:1,reason:"Test"},409);
+ await op("nurse","moveStock",{id:stock.id,version:0,direction:"IN",quantity:10,reason:"Receipt"});
+ await op("nurse","moveStock",{id:stock.id,version:1,direction:"OUT",quantity:4,reason:"Issue"});
+ assert.equal((await database.demoSupply.findUniqueOrThrow({where:{id:stock.id}})).quantity,6);
+});

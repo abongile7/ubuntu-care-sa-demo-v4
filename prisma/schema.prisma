@@ -677,3 +677,34 @@ model IntakeAttachment {
   bytes Bytes
   intake ArrivalIntake @relation(fields: [intakeId], references: [id], onDelete: Cascade)
 }
+
+model DemoBed {
+ id String @id @default(cuid())
+ code String @unique
+ ward String
+ status String @default("AVAILABLE")
+ intakeId String? @unique
+ version Int @default(0)
+ updatedAt DateTime @updatedAt
+}
+model DemoSupply {
+ id String @id @default(cuid())
+ code String @unique
+ name String
+ unit String
+ quantity Int @default(0)
+ reorderAt Int @default(0)
+ version Int @default(0)
+ movements DemoSupplyMovement[]
+}
+model DemoSupplyMovement {
+ id String @id @default(cuid())
+ supplyId String
+ direction String
+ quantity Int
+ reason String
+ actorId String
+ createdAt DateTime @default(now())
+ supply DemoSupply @relation(fields:[supplyId],references:[id],onDelete:Cascade)
+ @@index([supplyId,createdAt])
+}
