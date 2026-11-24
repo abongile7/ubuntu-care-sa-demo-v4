@@ -16,7 +16,7 @@ export function SiteHeader() {
           <a href="#features">Features</a>
           <a href="#journey">Journey</a>
           <a href="#roles">Roles</a>
-          <Link href="/remote">Consultations</Link><Link href="/activate">Activate account</Link>
+          <Link href="/remote">Consultations</Link><Link href="/paperless">Paperless care</Link><Link href="/activate">Activate account</Link>
         </nav>
 
         <div className="nav-actions">
