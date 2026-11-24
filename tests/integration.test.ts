@@ -1271,3 +1271,17 @@ test("arrival intake covers temporary identity, referral access and pre-arrival 
  await intake("admin","link",{id:walk.id,version:0,patientId,confirm:true});
  assert.equal((await database.arrivalIntake.findUniqueOrThrow({where:{id:walk.id}})).patientId,patientId);
 });
+
+test("national sandbox integration scenarios enforce role and synthetic-only boundary",async()=>{
+ await expectStatus(await request("/api/integration-lab"),401);
+ await expectStatus(await request("/api/integration-lab",{role:"patient"}),403);
+ const res=await request("/api/integration-lab",{role:"admin"});await expectStatus(res,200);
+ const data=await res.json();assert.equal(data.domains.length,9);
+ for(const domain of data.domains){
+  const response=await request("/api/integration-lab",{role:"admin",method:"POST",body:{domain:domain.id,scenario:domain.scenarios[0]}});
+  await expectStatus(response,200);const result=await response.json();assert.equal(result.providerConnected,false);assert.equal(result.clinicalRecordChanged,false);assert.equal(result.simulation,true);
+ }
+ await expectStatus(await request("/api/integration-lab",{role:"paramedic",method:"POST",body:{domain:"IDENTITY",scenario:"MATCH"}}),403);
+ await expectStatus(await request("/api/integration-lab",{role:"admin",method:"POST",body:{domain:"LAB",scenario:"WRONG"}}),400);
+ const health=await request("/api/health");await expectStatus(health,200);assert.equal((await health.json()).environment,"synthetic-demo");
+});
