@@ -1245,3 +1245,29 @@ test("paperless documents enforce signatures, identity, immutable content and pr
   await paper("billing","remittance",{id:claim.id,reference:"DEMO-RA-2",amountCents:6000});
   assert.equal((await database.careClaim.findUniqueOrThrow({where:{id:claim.id}})).status,"PAID");
 });
+
+test("arrival intake covers temporary identity, referral access and pre-arrival handover",async()=>{
+ async function intake(role:string,action:string,fields:Record<string,unknown>,status=200){
+  const res=await request("/api/intake",{role,method:"POST",body:{action,...fields}});await expectStatus(res,status);return res.json();
+ }
+ await expectStatus(await request("/api/intake",{role:"patient"}),403);
+ const fields={mode:"TRANSFER",identityStatus:"UNIDENTIFIED",sourceFacility:"Synthetic sending hospital",destinationUnit:"Casualty",summary:"Fictional transfer handover",observations:"Synthetic observations",treatment:"Synthetic treatment",file:"JVBERi0xLjQK",fileName:"referral.pdf"};
+ await intake("paramedic","create",fields,403);
+ const {id}=await intake("paramedic","create",{...fields,shareAuthorized:true});
+ const row=await database.arrivalIntake.findUniqueOrThrow({where:{id}});
+ assert.equal(row.status,"PRE_ALERT");assert.match(row.patientLabel,/^Temporary /);assert.equal(row.patientId,null);
+ await expectStatus(await request("/api/intake/"+id,{role:"paramedic2"}),404);
+ await expectStatus(await request("/api/intake/"+id,{role:"doctor"}),404);
+ const doc=await database.user.findUniqueOrThrow({where:{email:"doctor@ubuntucare.demo"}});
+ await intake("admin","assign",{id,version:0,doctorId:doc.id});
+ await expectStatus(await request("/api/intake/"+id,{role:"doctor"}),200);
+ await intake("doctor","acknowledge",{id,version:1});
+ await intake("paramedic","arrive",{id,version:1},409);
+ await intake("paramedic","arrive",{id,version:2});
+ await intake("nurse","handover",{id,version:3});
+ assert.equal((await database.arrivalIntake.findUniqueOrThrow({where:{id}})).status,"HANDED_OVER");
+ const walk=await intake("admin","create",{mode:"WALK_IN",identityStatus:"SELF_REPORTED",patientLabel:"Synthetic walk-in",destinationUnit:"Reception",summary:"Walk-in test"});
+ assert.equal((await database.arrivalIntake.findUniqueOrThrow({where:{id:walk.id}})).status,"ARRIVED");
+ await intake("admin","link",{id:walk.id,version:0,patientId,confirm:true});
+ assert.equal((await database.arrivalIntake.findUniqueOrThrow({where:{id:walk.id}})).patientId,patientId);
+});

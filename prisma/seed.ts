@@ -118,6 +118,8 @@ async function main() {
   ]);
 
   await prisma.session.deleteMany();
+  await prisma.intakeAttachment.deleteMany();
+  await prisma.arrivalIntake.deleteMany();
   await prisma.careClaimLine.deleteMany();
   await prisma.careClaim.deleteMany();
   await prisma.careIdentityCheck.deleteMany();

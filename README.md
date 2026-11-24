@@ -88,3 +88,7 @@ See [docs/REMOTE-DEMO.md](docs/REMOTE-DEMO.md) for the added patient activation,
 ## Paperless hospital centre
 
 Open `/paperless` for planned pre-admission, electronic form issue/signing, supporting PDF records and simulated claim remittance allocation. See [paperless demo and research](docs/PAPERLESS-DEMO.md) for details, tests and production gates.
+
+## Arrival and referral command centre
+
+Open `/intake` for walk-in, elective, ambulance, referral and transfer intake, temporary unidentified records, assigned clinician pre-arrival review and PDF handover. See [partner integration plan](docs/PARTNER-INTEGRATIONS.md). External integrations remain unconnected.
