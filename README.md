@@ -35,7 +35,7 @@ All seeded accounts use `Demo123!`. They are public presentation credentials, no
 
 Additional accounts: `paramedic2@ubuntucare.demo` is crew B, `insurer2@ubuntucare.demo` represents Momentum Medical Scheme, and `nomvula@ubuntucare.demo` / `pieter@ubuntucare.demo` are separate patients. Ordinary tabs share login cookies: use separate browser profiles or sign out between roles.
 
-New fictional registrations create a patient record with a random, undisclosed account password. The prototype does not implement patient invitations or password enrolment; new registrations do **not** inherit the public demo password.
+New fictional registrations create a patient record with a random, undisclosed account password. New registrations do **not** inherit the public demo password. Admissions can issue an activation code in /remote; patients redeem it at /activate.
 
 ## Connected workflow
 
@@ -80,3 +80,19 @@ No live Home Affairs, phone-provider, medical-aid, clearinghouse or payment cred
 Clinical/admissions/billing staff share one demonstration facility; clinician assignment, facility tenancy, production account enrolment, comprehensive legacy audit coverage, authentication abuse controls, diagnostic imaging, tariff/ICD catalogue validation, backups and recovery need further work. Staff portraits and provider links in the older workspace are sample content.
 
 The dependency audit still has transitive findings in Prisma/config/deepmerge-ts, Next/PostCSS and esbuild. Compatible fixes were applied in the preceding review; remaining major-version or override changes need separate compatibility work. Do not interpret passing functional tests as a security audit or clinical approval.
+
+## Patient onboarding and remote care
+
+See [docs/REMOTE-DEMO.md](docs/REMOTE-DEMO.md) for the added patient activation, doctor acceptance, persisted consultation chat, WebRTC browser video/audio and authorized telephone dialer demo. No live patient data, PSTN integration or public deployment is implied.
+
+## Paperless hospital centre
+
+Open `/paperless` for planned pre-admission, electronic form issue/signing, supporting PDF records and simulated claim remittance allocation. See [paperless demo and research](docs/PAPERLESS-DEMO.md) for details, tests and production gates.
+
+## Arrival and referral command centre
+
+Open `/intake` for walk-in, elective, ambulance, referral and transfer intake, temporary unidentified records, assigned clinician pre-arrival review and PDF handover. See [partner integration plan](docs/PARTNER-INTEGRATIONS.md). External integrations remain unconnected.
+
+## National sandbox hub
+
+Login now opens `/sandbox`, with role-specific links and guided UAT. `/integration-lab` runs internal synthetic scenarios across partner domains. See [private sandbox deployment](docs/SANDBOX-DEPLOYMENT.md) and `render.yaml` for the access-gated persistent hosting blueprint. No hosted deployment or partner connections are implied.

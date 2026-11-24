@@ -447,6 +447,7 @@ export async function claimAction(actor: Actor, body: Record<string, unknown>) {
       });
       await audit(tx, actor, encounterId, `CLAIM_${decision}_SIMULATED`);
     } else if (action === "pay") {
+      if (await tx.claimRemittance.count({ where: { claimId: claim.id } })) throw new CareError(409, "Continue reconciliation in the paperless workspace.");
       if (claim.status !== "APPROVED")
         throw new CareError(
           409,

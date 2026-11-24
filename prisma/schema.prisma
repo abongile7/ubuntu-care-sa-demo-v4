@@ -39,6 +39,7 @@ model User {
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
   sessions     Session[]
+  consultations RemoteConsultation[] @relation("ConsultDoctor")
   patient      PatientProfile?
 }
 
@@ -127,6 +128,10 @@ model PatientProfile {
   arrivals                      ArrivalRecord[]
   medicationAdministrations     MedicationAdministration[]
   encounters                    CareEncounter[]
+  invitations                   PatientInvitation[]
+  consultations                 RemoteConsultation[]
+  paperDocuments                PaperDocument[]
+  preAdmissions                 PreAdmission[]
 
   @@index([facilityFileNumber])
 }
@@ -496,6 +501,7 @@ model CareClaim {
   updatedAt              DateTime        @updatedAt
   encounter              CareEncounter   @relation(fields: [encounterId], references: [id], onDelete: Cascade)
   lineItems              CareClaimLine[]
+  remittances            ClaimRemittance[]
 
   @@index([encounterId, createdAt])
   @@index([scheme, sharedWithInsurer, status])
@@ -527,4 +533,178 @@ model CareAuditEvent {
   encounter   CareEncounter? @relation(fields: [encounterId], references: [id], onDelete: Cascade)
 
   @@index([encounterId, createdAt])
+}
+
+model PatientInvitation {
+  id String @id @default(cuid())
+  patientId String
+  tokenHash String @unique
+  expiresAt DateTime
+  usedAt DateTime?
+  patient PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  @@index([patientId])
+}
+
+model RemoteConsultation {
+  id String @id @default(cuid())
+  patientId String
+  doctorId String
+  mode String
+  reason String
+  scheduledAt DateTime
+  status String @default("REQUESTED")
+  offer String @default("")
+  answer String @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  patient PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor User @relation("ConsultDoctor", fields: [doctorId], references: [id], onDelete: Cascade)
+  messages RemoteMessage[]
+  @@index([patientId, status])
+  @@index([doctorId, status])
+}
+
+model RemoteMessage {
+  id String @id @default(cuid())
+  consultationId String
+  authorId String
+  authorName String
+  body String
+  createdAt DateTime @default(now())
+  consultation RemoteConsultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  @@index([consultationId, createdAt])
+}
+
+model PreAdmission {
+  id String @id @default(cuid())
+  patientId String
+  plannedAt DateTime
+  department String
+  reason String
+  funding String
+  authorization String @default("")
+  status String @default("SUBMITTED")
+  reviewNote String @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  patient PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  @@index([patientId, status])
+}
+
+model PaperDocument {
+  id String @id @default(cuid())
+  patientId String
+  category String
+  title String
+  body String
+  digest String
+  status String @default("ISSUED")
+  requiredRoles String
+  createdById String
+  createdByName String
+  createdAt DateTime @default(now())
+  patient PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  signatures PaperSignature[]
+  attachment PaperAttachment?
+  @@index([patientId, createdAt])
+}
+
+model PaperSignature {
+  id String @id @default(cuid())
+  documentId String
+  signerId String
+  signerName String
+  signerRole Role
+  documentDigest String
+  createdAt DateTime @default(now())
+  document PaperDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  @@unique([documentId, signerRole])
+}
+
+model PaperAttachment {
+  id String @id @default(cuid())
+  documentId String @unique
+  fileName String
+  bytes Bytes
+  digest String
+  document PaperDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
+
+model ClaimRemittance {
+  id String @id @default(cuid())
+  claimId String
+  reference String @unique
+  amountCents Int
+  reason String
+  receivedAt DateTime @default(now())
+  recordedById String
+  claim CareClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  @@index([claimId, receivedAt])
+}
+
+model ArrivalIntake {
+  id String @id @default(cuid())
+  reference String @unique
+  mode String
+  patientLabel String
+  identityStatus String
+  sourceFacility String
+  destinationUnit String
+  eta DateTime?
+  summary String
+  observations String
+  treatment String
+  status String @default("PRE_ALERT")
+  createdById String
+  createdByName String
+  assignedDoctorId String?
+  patientId String?
+  acknowledgedAt DateTime?
+  arrivedAt DateTime?
+  version Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  attachment IntakeAttachment?
+  @@index([assignedDoctorId, status])
+  @@index([createdById, status])
+}
+
+model IntakeAttachment {
+  id String @id @default(cuid())
+  intakeId String @unique
+  fileName String
+  digest String
+  bytes Bytes
+  intake ArrivalIntake @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+}
+
+model DemoBed {
+ id String @id @default(cuid())
+ code String @unique
+ ward String
+ status String @default("AVAILABLE")
+ intakeId String? @unique
+ version Int @default(0)
+ updatedAt DateTime @updatedAt
+}
+model DemoSupply {
+ id String @id @default(cuid())
+ code String @unique
+ name String
+ unit String
+ quantity Int @default(0)
+ reorderAt Int @default(0)
+ version Int @default(0)
+ movements DemoSupplyMovement[]
+}
+model DemoSupplyMovement {
+ id String @id @default(cuid())
+ supplyId String
+ direction String
+ quantity Int
+ reason String
+ actorId String
+ createdAt DateTime @default(now())
+ supply DemoSupply @relation(fields:[supplyId],references:[id],onDelete:Cascade)
+ @@index([supplyId,createdAt])
 }

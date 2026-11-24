@@ -89,7 +89,7 @@ export function LoginPanel() {
         return;
       }
 
-      router.push("/journey");
+      router.push("/sandbox");
       router.refresh();
     } catch {
       setMessage("Network error while signing in.");

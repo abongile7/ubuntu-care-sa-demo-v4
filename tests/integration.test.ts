@@ -1146,3 +1146,161 @@ test("new patient registration creates a restricted account and accepts explicit
   await expectStatus(loginResponse, 401);
   assert(await database.careAuditEvent.findFirst({ where: { action: "PATIENT_REGISTERED" } }));
 });
+
+test("remote onboarding activation, role isolation, chat and consultation transitions", async () => {
+  const registered = await database.patientProfile.findUniqueOrThrow({ where: { userId: (await database.user.findUniqueOrThrow({ where: { email: "new.patient@ubuntucare.demo" } })).id } });
+  async function remote(role: string | undefined, action: string, fields: Record<string, unknown>, status = 200) {
+    const res = await request("/api/remote", { role, method:"POST", body:{action,...fields} });
+    await expectStatus(res,status);
+    return res.json();
+  }
+  await expectStatus(await request("/api/remote"),401);
+  await expectStatus(await request("/api/remote",{role:"billing"}),403);
+  await remote("patient","invite",{patientId:registered.id},403);
+  const invited = await remote("admin","invite",{patientId:registered.id});
+  assert.match(invited.code,/^[a-f0-9]{48}$/);
+  const stored = await database.patientInvitation.findFirstOrThrow({where:{patientId:registered.id}});
+  assert.notEqual(stored.tokenHash,invited.code);
+  await remote(undefined,"activate",{code:invited.code,password:"SyntheticPass123!"});
+  await remote(undefined,"activate",{code:invited.code,password:"SyntheticPass123!"},400);
+  const signedIn = await request("/api/auth/login",{method:"POST",body:{email:registered.email,password:"SyntheticPass123!"}});
+  await expectStatus(signedIn,200);
+  cookies.remotePatient = signedIn.headers.get("set-cookie")!.split(";")[0];
+  const options = await (await request("/api/remote",{role:"remotePatient"})).json();
+  const doctorId = options.doctors[0].id;
+  const booking = {doctorId,mode:"VIDEO",reason:"Fictional follow-up",scheduledAt:new Date(Date.now()+3600000).toISOString()};
+  await remote("remotePatient","book",booking,403);
+  await remote("remotePatient","onboard",{phone:"010 555 0199",medicalAidScheme:"Self-pay",popiaConsent:true,consentTreatment:true});
+  const {id} = await remote("remotePatient","book",booking);
+  await remote("remotePatient","message",{id,body:"Before acceptance"},409);
+  await remote("otherPatient","message",{id,body:"Unauthorized"},404);
+  await remote("remotePatient","accept",{id},403);
+  const assigned = await database.user.findUniqueOrThrow({where:{email:"doctor@ubuntucare.demo"}});
+  assert.equal(doctorId,assigned.id);
+  await remote("doctor","accept",{id});
+  await remote("remotePatient","message",{id,body:"Synthetic hello"});
+  await remote("doctor","message",{id,body:"Synthetic reply"});
+  await remote("remotePatient","offer",{id,sdp:"v=0\r\n"});
+  await remote("doctor","answer",{id,sdp:"v=0\r\n"});
+  const own = await (await request("/api/remote",{role:"remotePatient"})).json();
+  assert.equal(own.consultations.find((c:{id:string})=>c.id===id).messages.length,2);
+  const foreign = await (await request("/api/remote",{role:"otherPatient"})).json();
+  assert(!foreign.consultations.some((c:{id:string})=>c.id===id));
+  const admin = await (await request("/api/remote",{role:"admin"})).json();
+  assert.equal(admin.consultations.length,0);
+  await remote("doctor","hangup",{id});
+  assert.equal((await database.remoteConsultation.findUniqueOrThrow({where:{id}})).offer,"");
+  await remote("doctor","complete",{id});
+  await remote("remotePatient","message",{id,body:"Closed"},409);
+  const next = await remote("remotePatient","book",{...booking,mode:"CHAT"});
+  await remote("doctor","accept",{id:next.id});
+  await remote("remotePatient","onboard",{phone:"010 555 0199",medicalAidScheme:"Self-pay",popiaConsent:false,consentTreatment:false});
+  assert.equal((await database.remoteConsultation.findUniqueOrThrow({where:{id:next.id}})).status,"CANCELLED");
+  await remote("doctor","message",{id:next.id,body:"Consent withdrawn"},409);
+});
+
+test("paperless documents enforce signatures, identity, immutable content and private downloads",async()=>{
+  async function paper(role:string,action:string,fields:Record<string,unknown>,status=200){
+    const response=await request("/api/paperless",{role,method:"POST",body:{action,...fields}});await expectStatus(response,status);return response.json();
+  }
+  await expectStatus(await request("/api/paperless"),401);
+  await expectStatus(await request("/api/paperless",{role:"insurer"}),403);
+  await paper("patient","issue",{patientId,category:"PROCEDURE",title:"Demo procedure",body:"Synthetic content"},403);
+  await paper("doctor","issue",{patientId,category:"PROCEDURE",title:"Demo procedure",body:"Synthetic risks, alternatives and questions discussed."});
+  const doc=await database.paperDocument.findFirstOrThrow({where:{title:"Demo procedure"}});
+  const evidence={id:doc.id,digest:doc.digest,password:"Demo123!",confirm:true};
+  await paper("otherPatient","sign",evidence,404);
+  await paper("patient","sign",evidence,409);
+  await paper("doctor","sign",{...evidence,password:"incorrect"},403);
+  await paper("doctor","sign",{...evidence,digest:"wrong"},409);
+  await paper("doctor","sign",evidence);
+  await paper("patient","sign",evidence);
+  await paper("patient","sign",evidence,409);
+  assert.equal((await database.paperDocument.findUniqueOrThrow({where:{id:doc.id}})).status,"SIGNED");
+  const pdf=await request("/api/paperless/"+doc.id,{role:"patient"});
+  await expectStatus(pdf,200);assert.equal(pdf.headers.get("content-type"),"application/pdf");
+  assert.equal(Buffer.from(await pdf.arrayBuffer()).subarray(0,5).toString(),"%PDF-");
+  await expectStatus(await request("/api/paperless/"+doc.id,{role:"otherPatient"}),404);
+  await expectStatus(await request("/api/paperless/"+doc.id,{role:"billing"}),404);
+  await paper("doctor","void",{id:doc.id});
+  assert.equal(await database.paperSignature.count({where:{documentId:doc.id}}),2);
+  await paper("patient","issue",{category:"SUPPORTING",title:"Demo attachment",body:"Synthetic supporting record",file:"bm90LXBkZg==",fileName:"test.pdf"},400);
+  await paper("patient","issue",{category:"SUPPORTING",title:"Demo attachment",body:"Synthetic supporting record",file:"JVBERi0xLjQK",fileName:"test.pdf"});
+  const upload=await database.paperDocument.findFirstOrThrow({where:{title:"Demo attachment"}});
+  await expectStatus(await request("/api/paperless/"+upload.id+"?attachment=1",{role:"patient"}),200);
+  await expectStatus(await request("/api/paperless/"+upload.id+"?attachment=1",{role:"otherPatient"}),404);
+  await database.patientProfile.update({where:{id:patientId},data:{popiaConsent:true}});
+  await paper("patient","preAdmission",{plannedAt:new Date(Date.now()+86400000).toISOString(),department:"Demo ward",reason:"Planned review",funding:"MEDICAL_AID"});
+  const admission=await database.preAdmission.findFirstOrThrow({where:{patientId}});
+  await paper("admin","reviewAdmission",{id:admission.id,status:"READY"},409);
+  await paper("otherPatient","cancelAdmission",{id:admission.id},404);
+  await paper("admin","reviewAdmission",{id:admission.id,status:"READY",authorization:"SIM-AUTH-1"});
+  const prior=await database.careClaim.findFirstOrThrow({where:{status:"PAID"}});
+  const claim=await database.careClaim.create({data:{reference:"DEMO-REMIT-TEST",encounterId:prior.encounterId,scheme:prior.scheme,memberNumberMasked:prior.memberNumberMasked,status:"APPROVED",diagnosisCode:prior.diagnosisCode,totalCents:10000,createdById:prior.createdById}});
+  await paper("patient","remittance",{id:claim.id,reference:"DEMO-RA-1",amountCents:4000},403);
+  await paper("billing","remittance",{id:claim.id,reference:"DEMO-RA-1",amountCents:4000});
+  await paper("billing","remittance",{id:claim.id,reference:"DEMO-RA-1",amountCents:4000},409);
+  await paper("billing","remittance",{id:claim.id,reference:"DEMO-RA-2",amountCents:7000},400);
+  assert.equal((await database.careClaim.findUniqueOrThrow({where:{id:claim.id}})).status,"APPROVED");
+  await paper("billing","remittance",{id:claim.id,reference:"DEMO-RA-2",amountCents:6000});
+  assert.equal((await database.careClaim.findUniqueOrThrow({where:{id:claim.id}})).status,"PAID");
+});
+
+test("arrival intake covers temporary identity, referral access and pre-arrival handover",async()=>{
+ async function intake(role:string,action:string,fields:Record<string,unknown>,status=200){
+  const res=await request("/api/intake",{role,method:"POST",body:{action,...fields}});await expectStatus(res,status);return res.json();
+ }
+ await expectStatus(await request("/api/intake",{role:"patient"}),403);
+ const fields={mode:"TRANSFER",identityStatus:"UNIDENTIFIED",sourceFacility:"Synthetic sending hospital",destinationUnit:"Casualty",summary:"Fictional transfer handover",observations:"Synthetic observations",treatment:"Synthetic treatment",file:"JVBERi0xLjQK",fileName:"referral.pdf"};
+ await intake("paramedic","create",fields,403);
+ const {id}=await intake("paramedic","create",{...fields,shareAuthorized:true});
+ const row=await database.arrivalIntake.findUniqueOrThrow({where:{id}});
+ assert.equal(row.status,"PRE_ALERT");assert.match(row.patientLabel,/^Temporary /);assert.equal(row.patientId,null);
+ await expectStatus(await request("/api/intake/"+id,{role:"paramedic2"}),404);
+ await expectStatus(await request("/api/intake/"+id,{role:"doctor"}),404);
+ const doc=await database.user.findUniqueOrThrow({where:{email:"doctor@ubuntucare.demo"}});
+ await intake("admin","assign",{id,version:0,doctorId:doc.id});
+ await expectStatus(await request("/api/intake/"+id,{role:"doctor"}),200);
+ await intake("doctor","acknowledge",{id,version:1});
+ await intake("paramedic","arrive",{id,version:1},409);
+ await intake("paramedic","arrive",{id,version:2});
+ await intake("nurse","handover",{id,version:3});
+ assert.equal((await database.arrivalIntake.findUniqueOrThrow({where:{id}})).status,"HANDED_OVER");
+ const walk=await intake("admin","create",{mode:"WALK_IN",identityStatus:"SELF_REPORTED",patientLabel:"Synthetic walk-in",destinationUnit:"Reception",summary:"Walk-in test"});
+ assert.equal((await database.arrivalIntake.findUniqueOrThrow({where:{id:walk.id}})).status,"ARRIVED");
+ await intake("admin","link",{id:walk.id,version:0,patientId,confirm:true});
+ assert.equal((await database.arrivalIntake.findUniqueOrThrow({where:{id:walk.id}})).patientId,patientId);
+});
+
+test("national sandbox integration scenarios enforce role and synthetic-only boundary",async()=>{
+ await expectStatus(await request("/api/integration-lab"),401);
+ await expectStatus(await request("/api/integration-lab",{role:"patient"}),403);
+ const res=await request("/api/integration-lab",{role:"admin"});await expectStatus(res,200);
+ const data=await res.json();assert.equal(data.domains.length,9);
+ for(const domain of data.domains){
+  const response=await request("/api/integration-lab",{role:"admin",method:"POST",body:{domain:domain.id,scenario:domain.scenarios[0]}});
+  await expectStatus(response,200);const result=await response.json();assert.equal(result.providerConnected,false);assert.equal(result.clinicalRecordChanged,false);assert.equal(result.simulation,true);
+ }
+ await expectStatus(await request("/api/integration-lab",{role:"paramedic",method:"POST",body:{domain:"IDENTITY",scenario:"MATCH"}}),403);
+ await expectStatus(await request("/api/integration-lab",{role:"admin",method:"POST",body:{domain:"LAB",scenario:"WRONG"}}),400);
+ const health=await request("/api/health");await expectStatus(health,200);assert.equal((await health.json()).environment,"synthetic-demo");
+});
+
+test("operations board guards bed occupancy and consumable stock",async()=>{
+ async function op(role:string,action:string,fields:Record<string,unknown>,status=200){const r=await request("/api/operations",{role,method:"POST",body:{action,...fields}});await expectStatus(r,status);}
+ await op("patient","createBed",{code:"TEST-1",ward:"Demo"},403);
+ await op("admin","createBed",{code:"TEST-1",ward:"Demo"});
+ const bed=await database.demoBed.findUniqueOrThrow({where:{code:"TEST-1"}});
+ const intake=await database.arrivalIntake.findFirstOrThrow({where:{status:"ARRIVED"}});
+ await op("nurse","allocate",{id:bed.id,version:0,intakeId:intake.id});
+ await op("nurse","release",{id:bed.id,version:0},409);
+ await op("nurse","release",{id:bed.id,version:1});
+ await op("nurse","clean",{id:bed.id,version:2});
+ assert.equal((await database.demoBed.findUniqueOrThrow({where:{id:bed.id}})).status,"AVAILABLE");
+ await op("admin","createSupply",{code:"GLOVE-TEST",name:"Demo gloves",unit:"box",reorderAt:3});
+ const stock=await database.demoSupply.findUniqueOrThrow({where:{code:"GLOVE-TEST"}});
+ await op("nurse","moveStock",{id:stock.id,version:0,direction:"OUT",quantity:1,reason:"Test"},409);
+ await op("nurse","moveStock",{id:stock.id,version:0,direction:"IN",quantity:10,reason:"Receipt"});
+ await op("nurse","moveStock",{id:stock.id,version:1,direction:"OUT",quantity:4,reason:"Issue"});
+ assert.equal((await database.demoSupply.findUniqueOrThrow({where:{id:stock.id}})).quantity,6);
+});
