@@ -1146,3 +1146,55 @@ test("new patient registration creates a restricted account and accepts explicit
   await expectStatus(loginResponse, 401);
   assert(await database.careAuditEvent.findFirst({ where: { action: "PATIENT_REGISTERED" } }));
 });
+
+test("remote onboarding activation, role isolation, chat and consultation transitions", async () => {
+  const registered = await database.patientProfile.findUniqueOrThrow({ where: { userId: (await database.user.findUniqueOrThrow({ where: { email: "new.patient@ubuntucare.demo" } })).id } });
+  async function remote(role: string | undefined, action: string, fields: Record<string, unknown>, status = 200) {
+    const res = await request("/api/remote", { role, method:"POST", body:{action,...fields} });
+    await expectStatus(res,status);
+    return res.json();
+  }
+  await expectStatus(await request("/api/remote"),401);
+  await expectStatus(await request("/api/remote",{role:"billing"}),403);
+  await remote("patient","invite",{patientId:registered.id},403);
+  const invited = await remote("admin","invite",{patientId:registered.id});
+  assert.match(invited.code,/^[a-f0-9]{48}$/);
+  const stored = await database.patientInvitation.findFirstOrThrow({where:{patientId:registered.id}});
+  assert.notEqual(stored.tokenHash,invited.code);
+  await remote(undefined,"activate",{code:invited.code,password:"SyntheticPass123!"});
+  await remote(undefined,"activate",{code:invited.code,password:"SyntheticPass123!"},400);
+  const signedIn = await request("/api/auth/login",{method:"POST",body:{email:registered.email,password:"SyntheticPass123!"}});
+  await expectStatus(signedIn,200);
+  cookies.remotePatient = signedIn.headers.get("set-cookie")!.split(";")[0];
+  const options = await (await request("/api/remote",{role:"remotePatient"})).json();
+  const doctorId = options.doctors[0].id;
+  const booking = {doctorId,mode:"VIDEO",reason:"Fictional follow-up",scheduledAt:new Date(Date.now()+3600000).toISOString()};
+  await remote("remotePatient","book",booking,403);
+  await remote("remotePatient","onboard",{phone:"010 555 0199",medicalAidScheme:"Self-pay",popiaConsent:true,consentTreatment:true});
+  const {id} = await remote("remotePatient","book",booking);
+  await remote("remotePatient","message",{id,body:"Before acceptance"},409);
+  await remote("otherPatient","message",{id,body:"Unauthorized"},404);
+  await remote("remotePatient","accept",{id},403);
+  const assigned = await database.user.findUniqueOrThrow({where:{email:"doctor@ubuntucare.demo"}});
+  assert.equal(doctorId,assigned.id);
+  await remote("doctor","accept",{id});
+  await remote("remotePatient","message",{id,body:"Synthetic hello"});
+  await remote("doctor","message",{id,body:"Synthetic reply"});
+  await remote("remotePatient","offer",{id,sdp:"v=0\r\n"});
+  await remote("doctor","answer",{id,sdp:"v=0\r\n"});
+  const own = await (await request("/api/remote",{role:"remotePatient"})).json();
+  assert.equal(own.consultations.find((c:{id:string})=>c.id===id).messages.length,2);
+  const foreign = await (await request("/api/remote",{role:"otherPatient"})).json();
+  assert(!foreign.consultations.some((c:{id:string})=>c.id===id));
+  const admin = await (await request("/api/remote",{role:"admin"})).json();
+  assert.equal(admin.consultations.length,0);
+  await remote("doctor","hangup",{id});
+  assert.equal((await database.remoteConsultation.findUniqueOrThrow({where:{id}})).offer,"");
+  await remote("doctor","complete",{id});
+  await remote("remotePatient","message",{id,body:"Closed"},409);
+  const next = await remote("remotePatient","book",{...booking,mode:"CHAT"});
+  await remote("doctor","accept",{id:next.id});
+  await remote("remotePatient","onboard",{phone:"010 555 0199",medicalAidScheme:"Self-pay",popiaConsent:false,consentTreatment:false});
+  assert.equal((await database.remoteConsultation.findUniqueOrThrow({where:{id:next.id}})).status,"CANCELLED");
+  await remote("doctor","message",{id:next.id,body:"Consent withdrawn"},409);
+});
