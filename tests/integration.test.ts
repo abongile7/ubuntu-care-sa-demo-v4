@@ -1198,3 +1198,50 @@ test("remote onboarding activation, role isolation, chat and consultation transi
   assert.equal((await database.remoteConsultation.findUniqueOrThrow({where:{id:next.id}})).status,"CANCELLED");
   await remote("doctor","message",{id:next.id,body:"Consent withdrawn"},409);
 });
+
+test("paperless documents enforce signatures, identity, immutable content and private downloads",async()=>{
+  async function paper(role:string,action:string,fields:Record<string,unknown>,status=200){
+    const response=await request("/api/paperless",{role,method:"POST",body:{action,...fields}});await expectStatus(response,status);return response.json();
+  }
+  await expectStatus(await request("/api/paperless"),401);
+  await expectStatus(await request("/api/paperless",{role:"insurer"}),403);
+  await paper("patient","issue",{patientId,category:"PROCEDURE",title:"Demo procedure",body:"Synthetic content"},403);
+  await paper("doctor","issue",{patientId,category:"PROCEDURE",title:"Demo procedure",body:"Synthetic risks, alternatives and questions discussed."});
+  const doc=await database.paperDocument.findFirstOrThrow({where:{title:"Demo procedure"}});
+  const evidence={id:doc.id,digest:doc.digest,password:"Demo123!",confirm:true};
+  await paper("otherPatient","sign",evidence,404);
+  await paper("patient","sign",evidence,409);
+  await paper("doctor","sign",{...evidence,password:"incorrect"},403);
+  await paper("doctor","sign",{...evidence,digest:"wrong"},409);
+  await paper("doctor","sign",evidence);
+  await paper("patient","sign",evidence);
+  await paper("patient","sign",evidence,409);
+  assert.equal((await database.paperDocument.findUniqueOrThrow({where:{id:doc.id}})).status,"SIGNED");
+  const pdf=await request("/api/paperless/"+doc.id,{role:"patient"});
+  await expectStatus(pdf,200);assert.equal(pdf.headers.get("content-type"),"application/pdf");
+  assert.equal(Buffer.from(await pdf.arrayBuffer()).subarray(0,5).toString(),"%PDF-");
+  await expectStatus(await request("/api/paperless/"+doc.id,{role:"otherPatient"}),404);
+  await expectStatus(await request("/api/paperless/"+doc.id,{role:"billing"}),404);
+  await paper("doctor","void",{id:doc.id});
+  assert.equal(await database.paperSignature.count({where:{documentId:doc.id}}),2);
+  await paper("patient","issue",{category:"SUPPORTING",title:"Demo attachment",body:"Synthetic supporting record",file:"bm90LXBkZg==",fileName:"test.pdf"},400);
+  await paper("patient","issue",{category:"SUPPORTING",title:"Demo attachment",body:"Synthetic supporting record",file:"JVBERi0xLjQK",fileName:"test.pdf"});
+  const upload=await database.paperDocument.findFirstOrThrow({where:{title:"Demo attachment"}});
+  await expectStatus(await request("/api/paperless/"+upload.id+"?attachment=1",{role:"patient"}),200);
+  await expectStatus(await request("/api/paperless/"+upload.id+"?attachment=1",{role:"otherPatient"}),404);
+  await database.patientProfile.update({where:{id:patientId},data:{popiaConsent:true}});
+  await paper("patient","preAdmission",{plannedAt:new Date(Date.now()+86400000).toISOString(),department:"Demo ward",reason:"Planned review",funding:"MEDICAL_AID"});
+  const admission=await database.preAdmission.findFirstOrThrow({where:{patientId}});
+  await paper("admin","reviewAdmission",{id:admission.id,status:"READY"},409);
+  await paper("otherPatient","cancelAdmission",{id:admission.id},404);
+  await paper("admin","reviewAdmission",{id:admission.id,status:"READY",authorization:"SIM-AUTH-1"});
+  const prior=await database.careClaim.findFirstOrThrow({where:{status:"PAID"}});
+  const claim=await database.careClaim.create({data:{reference:"DEMO-REMIT-TEST",encounterId:prior.encounterId,scheme:prior.scheme,memberNumberMasked:prior.memberNumberMasked,status:"APPROVED",diagnosisCode:prior.diagnosisCode,totalCents:10000,createdById:prior.createdById}});
+  await paper("patient","remittance",{id:claim.id,reference:"DEMO-RA-1",amountCents:4000},403);
+  await paper("billing","remittance",{id:claim.id,reference:"DEMO-RA-1",amountCents:4000});
+  await paper("billing","remittance",{id:claim.id,reference:"DEMO-RA-1",amountCents:4000},409);
+  await paper("billing","remittance",{id:claim.id,reference:"DEMO-RA-2",amountCents:7000},400);
+  assert.equal((await database.careClaim.findUniqueOrThrow({where:{id:claim.id}})).status,"APPROVED");
+  await paper("billing","remittance",{id:claim.id,reference:"DEMO-RA-2",amountCents:6000});
+  assert.equal((await database.careClaim.findUniqueOrThrow({where:{id:claim.id}})).status,"PAID");
+});
